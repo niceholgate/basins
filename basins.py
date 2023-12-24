@@ -11,7 +11,7 @@ from PIL import Image
 from datetime import datetime
 from pathlib import Path
 
-nb.config.DISABLE_JIT = True
+nb.config.DISABLE_JIT = False
 
 SEARCH_X_LIMS = [-1000, 1000]
 SEARCH_Y_LIMS = [-1000, 1000]
@@ -148,19 +148,63 @@ solutions, iterations = solve_grid(tuple(unique_solns))
 duration = time.time()-start
 print(f'Solution duration was {duration}')
 
+def smooth_grid(solutions):
+    # smoothed = np.zeros((Y_PIXELS, X_PIXELS), dtype=np.int_)
+    smoothed_count = 0
+    smooth_solutions = solutions.copy()
+    for j in range(1, smooth_solutions.shape[0]-1):
+        for i in range(1, smooth_solutions.shape[1]-1):
+            adjacent_solutions = {}
+            diagonal_solutions = {}
+            for delta_j in [-1, 0, 1]:
+                for delta_i in [-1, 0, 1]:
+                    soln = smooth_solutions[j + delta_j, i + delta_i]
+                    if delta_j == delta_i == 0:
+                        break
+                    elif delta_j == 0 or delta_i == 0:
+                        if soln not in adjacent_solutions:
+                            adjacent_solutions[soln] = 1
+                        else:
+                            adjacent_solutions[soln] += 1
+                    else:
+                        if soln not in diagonal_solutions:
+                            diagonal_solutions[soln] = 1
+                        else:
+                            diagonal_solutions[soln] += 1
+
+            # Smooth pixel if its only equivalent neighbour is a diagonal (or no equivalent neighbours)
+            if smooth_solutions[j, i] not in adjacent_solutions\
+                    and (diagonal_solutions.get(smooth_solutions[j, i], 0) < 2):
+                # It becomes the same solution as its most prevalent neighbour
+                current_max = 0
+                current_soln = smooth_solutions[j, i]
+                for neighbour in set(adjacent_solutions.keys()).union(diagonal_solutions.keys()):
+                    count = adjacent_solutions.get(neighbour, 0) + diagonal_solutions.get(neighbour, 0)
+                    if count > current_max:
+                        current_max = count
+                        current_soln = neighbour
+                smooth_solutions[j, i] = current_soln
+                smoothed_count += 1
+
+    print(f'Smoothed {smoothed_count}/{Y_PIXELS*X_PIXELS} pixels')
+    return smooth_solutions
+
+solutions_smooth = smooth_grid(solutions)
+
+
+
 images_dir = Path().cwd()/f'images/{datetime.now().strftime("%Y-%m-%d-%H-%M-%S")}'
 images_dir.mkdir(parents=True)
 colours = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan']
-pixel_grid = np.zeros([Y_PIXELS, X_PIXELS, 4], dtype=np.uint8)
+pixel_grid = np.zeros([Y_PIXELS, X_PIXELS, 3], dtype=np.uint8)
 
 # Generate images with multiple colour schemes
 for colour_offset in range(len(colours)):
     for j in range(Y_PIXELS):
         for i in range(X_PIXELS):
-            colour_idx = (solutions[j, i] + colour_offset) % len(colours)
-            pixel_grid[j, i, :] = [int(x*255) for x in matplotlib.colors.to_rgba(colours[colour_idx])]
-            pixel_grid[j, i, 3] -= min(iterations[j, i]*2, 100)
+            colour_idx = (solutions_smooth[j, i] + colour_offset) % len(colours)
+            pixel_grid[j, i, :] = [int(x*255) for x in matplotlib.colors.to_rgb(colours[colour_idx])]
     Image.fromarray(pixel_grid, 'RGBA').save(images_dir / f'{colour_offset}.png')
 
 
-# TODO: smooth noise
+# TODO: use the iterations counts to blend solution colours
