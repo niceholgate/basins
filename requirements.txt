@@ -1,5 +1,6 @@
-numpy
-sympy
-matplotlib
-numba
+numpy~=1.26.1
+sympy~=1.12
+matplotlib~=3.8.0
+numba~=0.58.1
 scipy
+Pillow~=10.1.0
