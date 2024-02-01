@@ -1,39 +1,43 @@
-import config, newton
+import config as cfg
+import newton
 
 import numpy as np
+import numpy.typing as npt
 import numba as nb
 import sys
 import matplotlib.pyplot as plt
+from typing import Tuple, Callable, List
 
-nb.config.DISABLE_JIT = config.DISABLE_JIT
+nb.config.DISABLE_JIT = cfg.DISABLE_JIT
 
-
-# Do a randomised search to find unique solutions, stopping early if new unique solutions stop being found
-def find_all_unique_solutions(f_lambda, j_lambda, delta=0):
-    unique_solns = []
-    x_randoms = config.SEARCH_X_LIMS[0] + (config.SEARCH_X_LIMS[1]-config.SEARCH_X_LIMS[0])*np.random.random(config.MAX_SEARCH_POINTS)
-    y_randoms = config.SEARCH_Y_LIMS[0] + (config.SEARCH_Y_LIMS[1]-config.SEARCH_Y_LIMS[0])*np.random.random(config.MAX_SEARCH_POINTS)
+# @nb.njit(target_backend=cfg.NUMBA_TARGET)
+def find_all_unique_solutions(f_lamb: Callable, j_lamb: Callable, delta: int = 0) -> npt.NDArray:
+    """Do a randomised search to find unique solutions, stopping early if new unique solutions stop being found."""
+    unique_solns: List[npt.NDArray] = []
+    x_randoms = cfg.SEARCH_X_LIMS[0] + (cfg.SEARCH_X_LIMS[1]-cfg.SEARCH_X_LIMS[0])*np.random.random(cfg.MAX_SEARCH_POINTS)
+    y_randoms = cfg.SEARCH_Y_LIMS[0] + (cfg.SEARCH_Y_LIMS[1]-cfg.SEARCH_Y_LIMS[0])*np.random.random(cfg.MAX_SEARCH_POINTS)
+    randoms = np.array([x_randoms, y_randoms])
     point_count = 0
     converged_search_points_since_last_new_soln = 0
-    for x_rand, y_rand in zip(x_randoms, y_randoms):
+    for idx in range(randoms.shape[1]):
         point_count += 1
-        # print(f'Searching point number {point_count}')
-        soln, delta_norm_history = newton.solve(f_lambda, j_lambda, (x_rand, y_rand), delta)
-        converged = len(delta_norm_history) < config.MAX_ITERS
+        soln, delta_norm_history = newton.solve(f_lamb, j_lamb, randoms[:, idx], delta)
+        converged = len(delta_norm_history) < cfg.MAX_ITERS
         if converged:
             if not unique_solns:
                 unique_solns.append(soln)
-            if any([points_approx_equal(existing_soln, soln) for existing_soln in unique_solns]):
+            if any([_points_approx_equal(existing_soln, soln) for existing_soln in unique_solns]):
                 converged_search_points_since_last_new_soln += 1
             else:
                 converged_search_points_since_last_new_soln = 0
                 unique_solns.append(soln)
-            if converged_search_points_since_last_new_soln >= config.MAX_CONVERGED_SEARCH_POINTS_SINCE_LAST_NEW_SOLUTION:
-                # print(f'End search with {len(unique_solns)} unique solutions after reaching the limit of '
-                #       f'{config.MAX_CONVERGED_SEARCH_POINTS_SINCE_LAST_NEW_SOLUTION} consecutive converged search points since the last new unique solution')
+            if converged_search_points_since_last_new_soln >= cfg.MAX_CONVERGED_SEARCH_POINTS_SINCE_LAST_NEW_SOLUTION:
+                print(f'End search with {len(unique_solns)} unique solutions after reaching the limit of '
+                      f'{cfg.MAX_CONVERGED_SEARCH_POINTS_SINCE_LAST_NEW_SOLUTION} consecutive converged search points'
+                      f' since the last new unique solution.')
                 break
 
-    if config.SHOW_UNIQUE_SOLUTIONS_AND_EXIT:
+    if cfg.SHOW_UNIQUE_SOLUTIONS_AND_EXIT:
         plt.figure()
         x_solns = [soln[0] for soln in unique_solns]
         y_solns = [soln[1] for soln in unique_solns]
@@ -45,52 +49,51 @@ def find_all_unique_solutions(f_lambda, j_lambda, delta=0):
         print('Found fewer than 2 unique solutions, cannot generate an image')
         sys.exit(0)
 
-    return sorted(unique_solns)
+    # Temporarily convert the solutions to tuples to sort them (ensures the random search returns the same result each
+    # time for a given system of equations) then put them into one 2D array
+    return np.array(sorted([tuple(s) for s in unique_solns]))
 
 
-def get_image_pixel_coords(unique_solns):
+# @nb.njit(target_backend=cfg.NUMBA_TARGET)
+def get_image_pixel_coords(unique_solns: npt.NDArray) -> Tuple[npt.NDArray, npt.NDArray]:
+    """Get the coordinates of all the pixels in the image, ensuring that all the known solutions to the system of
+    equations fall safely within the bounds of the image."""
     # Collapse to a grid of final image's aspect ratio and with some borders around the unique solutions
-    soln_xs, soln_ys = [soln[0] for soln in unique_solns], [soln[1] for soln in unique_solns]
-    x_min, x_mean, x_max = np.min(soln_xs), np.mean(soln_xs), np.max(soln_xs)
-    y_min, y_mean, y_max = np.min(soln_ys), np.mean(soln_ys), np.max(soln_ys)
+    x_min, x_mean, x_max = unique_solns[:, 0].min(), unique_solns[:, 0].mean(), unique_solns[:, 0].max()
+    y_min, y_mean, y_max = unique_solns[:, 1].min(), unique_solns[:, 1].mean(), unique_solns[:, 1].max()
+
     # Need to handle cases where solutions are collinear in x or y directions
     if y_min == y_max:
         x_range = (x_max - x_min) * 4
-        y_range = x_range * config.Y_PIXELS / config.X_PIXELS
+        y_range = x_range * cfg.Y_PIXELS / cfg.X_PIXELS
     elif x_min == x_max:
         y_range = (y_max - y_min) * 4
-        x_range = y_range * config.X_PIXELS / config.Y_PIXELS
+        x_range = y_range * cfg.X_PIXELS / cfg.Y_PIXELS
     else:
         x_range = (x_max - x_min) * 4
         y_range = (y_max - y_min) * 4
 
-    return np.linspace(x_mean-x_range/2, x_mean+x_range/2, config.X_PIXELS),\
-           np.linspace(y_mean-y_range/2, y_mean+y_range/2, config.Y_PIXELS)
-
-@nb.njit(target_backend=config.NUMBA_TARGET)
-def points_approx_equal(p1, p2):
-    return np.linalg.norm(np.array(p1) - np.array(p2)) < 2 * config.EPSILON
+    return np.linspace(x_mean-x_range/2, x_mean+x_range/2, cfg.X_PIXELS),\
+           np.linspace(y_mean-y_range/2, y_mean+y_range/2, cfg.Y_PIXELS)
 
 
-
-# Find the converged solution for each pixel - record it and the number of iterations
-# Determine the base colours for each unique solution, and how they will be modified by number of iterations
-@nb.njit(target_backend=config.NUMBA_TARGET)
-def solve_grid(unique_solutions, x_coords, y_coords, f_lambda, j_lambda, delta=0):
-    solutions_local = np.zeros((config.Y_PIXELS, config.X_PIXELS), dtype=np.int_)
-    iterations_local = np.zeros((config.Y_PIXELS, config.X_PIXELS), dtype=np.int_)
-    for j in range(config.Y_PIXELS):
-        # print(f'Now calculating pixels for row {j+1} of {config.Y_PIXELS}')
+@nb.njit(target_backend=cfg.NUMBA_TARGET)
+def solve_grid(unique_solutions: npt.NDArray, x_coords: npt.NDArray, y_coords: npt.NDArray, f_lambda: Callable,
+               j_lambda: Callable, delta: int = 0) -> Tuple[npt.NDArray, npt.NDArray]:
+    """Find which unique solution is reached for each pixel, and how many Newton's method iterations it took."""
+    solutions_local = np.zeros((cfg.Y_PIXELS, cfg.X_PIXELS), dtype=np.int_)
+    iterations_local = np.zeros((cfg.Y_PIXELS, cfg.X_PIXELS), dtype=np.int_)
+    for j in range(cfg.Y_PIXELS):
         y_init = y_coords[j]
         for i, x_init in enumerate(x_coords):
-            soln, delta_norm_hist = newton.solve(f_lambda, j_lambda, (x_init, y_init), delta)
+            soln, delta_norm_hist = newton.solve(f_lambda, j_lambda, np.array([x_init, y_init]), delta)
             iters = len(delta_norm_hist)
             iterations_local[j, i] = iters
-            if iters < config.MAX_ITERS:
+            if iters < cfg.MAX_ITERS:
                 match = -1
-                for soln_idx, unique_soln in enumerate(unique_solutions):
-                    if points_approx_equal(unique_soln, soln):
-                        match = soln_idx + 1
+                for unique_soln_idx in range(unique_solutions.shape[0]):
+                    if _points_approx_equal(unique_solutions[unique_soln_idx, :], soln):
+                        match = unique_soln_idx + 1
                         break
                 if match != -1:
                     solutions_local[j, i] = match
@@ -100,3 +103,8 @@ def solve_grid(unique_solutions, x_coords, y_coords, f_lambda, j_lambda, delta=0
             else:
                 solutions_local[j, i] = 0
     return solutions_local, iterations_local
+
+
+@nb.njit(target_backend=cfg.NUMBA_TARGET)
+def _points_approx_equal(p1: npt.NDArray, p2: npt.NDArray) -> bool:
+    return bool(np.linalg.norm(p1 - p2) < 2 * cfg.EPSILON)

@@ -1,6 +1,8 @@
-numpy~=1.26.1
+numpy==1.26.3
 sympy~=1.12
-matplotlib~=3.8.0
+matplotlib==3.8.2
 numba~=0.58.1
-scipy
-Pillow~=10.1.0
+scipy==1.12.0
+Pillow==10.2.0
+ffmpeg-python
+mypy
