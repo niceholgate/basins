@@ -15,8 +15,8 @@ unique_solns = calc.find_all_unique_solutions(f_lambda, j_lambda)
 x_coords, y_coords = calc.get_image_pixel_coords(unique_solns)
 solutions, iterations = calc.solve_grid(unique_solns, x_coords, y_coords, f_lambda, j_lambda)
 
-# TODO: 1. add a CLI 2. option to specify list of colours
+# TODO: 1. add a CLI 2. add logging
 images_dir = Path().cwd() / f'images/{datetime.now().strftime("%Y-%m-%d-%H-%M-%S")}'
-imaging.save_still(solutions, iterations, images_dir, colour_offset=8)
+imaging.save_still(solutions, iterations, unique_solns, images_dir, colour_set=['tab:blue', 'tab:orange', 'tab:green'])
 
 

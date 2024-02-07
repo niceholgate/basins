@@ -13,8 +13,8 @@ from typing import List, Union
 nb.config.DISABLE_JIT = cfg.DISABLE_JIT
 
 
-def save_still(solutions: npt.NDArray, iterations: npt.NDArray, images_dir: Path, smoothing: bool = True,
-               blending: bool = True, colour_offset: Union[int, None] = None, frame: int = 0):
+def save_still(solutions: npt.NDArray, iterations: npt.NDArray, unique_solns: npt.NDArray, images_dir: Path,
+               smoothing: bool = True, blending: bool = True, colour_set: Union[int, List[str]] = 0, frame: int = 0):
     """Generate an image with the specified colour scheme, or a range of colour schemes if none specified."""
     if not images_dir.exists():
         images_dir.mkdir(parents=True)
@@ -24,17 +24,21 @@ def save_still(solutions: npt.NDArray, iterations: npt.NDArray, images_dir: Path
     blending_arrays = _create_blending_arrays(iterations) if blending else []
 
     frame_formatted = cfg.FRAME_COUNT_PADDING.format(frame)
-    rgb_colours = [matplotlib.colors.to_rgb(cfg.COLOURS[colour_idx]) for colour_idx in range(len(cfg.COLOURS))]
-    colour_offsets = range(len(cfg.COLOURS)) if colour_offset is None else [colour_offset]
 
-    for colour_offset in colour_offsets:
-        for j in range(cfg.Y_PIXELS):
-            for i in range(cfg.X_PIXELS):
-                if iterations[j, i] < cfg.BLACKOUT_ITERS:
-                    colour_idx = (smoothed_solutions[j, i] + colour_offset) % len(cfg.COLOURS)
-                    pixel_grid[j, i, :] = [int(x*255) for x in rgb_colours[colour_idx]]
-        blended_pixel_grid = _blend_grid(pixel_grid, blending_arrays, 0) if blending else pixel_grid
-        Image.fromarray(blended_pixel_grid, 'RGB').save(images_dir / f'{colour_offset}-{frame_formatted}.png')
+    if not (isinstance(colour_set, list) and len(colour_set) == unique_solns.shape[0]):
+        idx = colour_set if isinstance(colour_set, int) else 0
+        colour_set = []
+        while len(colour_set) < unique_solns.shape[0]:
+            colour_set.append(cfg.DEFAULT_COLOURS[idx % len(cfg.DEFAULT_COLOURS)])
+            idx += 1
+    rgb_colours = [matplotlib.colors.to_rgb(colour) for colour in colour_set]
+
+    for j in range(cfg.Y_PIXELS):
+        for i in range(cfg.X_PIXELS):
+            if iterations[j, i] < cfg.BLACKOUT_ITERS:
+                pixel_grid[j, i, :] = [int(x*255) for x in rgb_colours[smoothed_solutions[j, i]-1]]
+    blended_pixel_grid = _blend_grid(pixel_grid, blending_arrays, 0) if blending else pixel_grid
+    Image.fromarray(blended_pixel_grid, 'RGB').save(images_dir / f'frame-{frame_formatted}.png')
 
 
 def stills_to_video(images_dir: Path, fps: int):

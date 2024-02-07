@@ -11,7 +11,7 @@ X_PIXELS = int(3440/8)
 Y_PIXELS = int(1440/8)
 BLACKOUT_ITERS = 1000
 BLENDING_DECAY_FACTOR = 4.0
-COLOURS = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple',
+DEFAULT_COLOURS = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple',
            'tab:pink', 'tab:olive', 'tab:cyan', 'tab:gray', 'tab:brown']
 FRAME_COUNT_PADDING = '{:06d}'
 

@@ -35,7 +35,8 @@ for i, delta in enumerate(deltas):
     start = datetime.now()
     print(f'Now solving the grid for frame {i+1} of {len(deltas)} (delta={delta})...')
     solutions, iterations = calc.solve_grid(unique_solns_per_delta[i], x_coords, y_coords, f_lambda, j_lambda, delta)
-    imaging.save_still(solutions, iterations, images_dir, smoothing=False, blending=False, colour_offset=2, frame=i)
+    imaging.save_still(solutions, iterations, unique_solns_per_delta[i], images_dir,
+                       smoothing=False, blending=False, colour_set=2, frame=i)
     total_duration += (datetime.now()-start).total_seconds()
     if i != len(deltas)-1:
         mean_duration = '{:.2f}'.format(total_duration/(i+1))
