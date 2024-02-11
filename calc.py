@@ -1,5 +1,4 @@
 import config as cfg
-import newton
 
 import numpy as np
 import numpy.typing as npt
@@ -10,8 +9,9 @@ from typing import Tuple, Callable, List
 
 nb.config.DISABLE_JIT = cfg.DISABLE_JIT
 
+
 # @nb.njit(target_backend=cfg.NUMBA_TARGET)
-def find_all_unique_solutions(f_lamb: Callable, j_lamb: Callable, delta: int = 0) -> npt.NDArray:
+def find_unique_solutions(f_lamb: Callable, j_lamb: Callable, delta: float) -> npt.NDArray:
     """Do a randomised search to find unique solutions, stopping early if new unique solutions stop being found."""
     unique_solns: List[npt.NDArray] = []
     x_randoms = cfg.SEARCH_X_LIMS[0] + (cfg.SEARCH_X_LIMS[1]-cfg.SEARCH_X_LIMS[0])*np.random.random(cfg.MAX_SEARCH_POINTS)
@@ -21,7 +21,7 @@ def find_all_unique_solutions(f_lamb: Callable, j_lamb: Callable, delta: int = 0
     converged_search_points_since_last_new_soln = 0
     for idx in range(randoms.shape[1]):
         point_count += 1
-        soln, delta_norm_history = newton.solve(f_lamb, j_lamb, randoms[:, idx], delta)
+        soln, delta_norm_history = newton_solve(f_lamb, j_lamb, randoms[:, idx], delta)
         converged = len(delta_norm_history) < cfg.MAX_ITERS
         if converged:
             if not unique_solns:
@@ -79,14 +79,14 @@ def get_image_pixel_coords(unique_solns: npt.NDArray) -> Tuple[npt.NDArray, npt.
 
 @nb.njit(target_backend=cfg.NUMBA_TARGET)
 def solve_grid(unique_solutions: npt.NDArray, x_coords: npt.NDArray, y_coords: npt.NDArray, f_lambda: Callable,
-               j_lambda: Callable, delta: int = 0) -> Tuple[npt.NDArray, npt.NDArray]:
+               j_lambda: Callable, delta: float) -> Tuple[npt.NDArray, npt.NDArray]:
     """Find which unique solution is reached for each pixel, and how many Newton's method iterations it took."""
     solutions_local = np.zeros((cfg.Y_PIXELS, cfg.X_PIXELS), dtype=np.int_)
     iterations_local = np.zeros((cfg.Y_PIXELS, cfg.X_PIXELS), dtype=np.int_)
     for j in range(cfg.Y_PIXELS):
         y_init = y_coords[j]
         for i, x_init in enumerate(x_coords):
-            soln, delta_norm_hist = newton.solve(f_lambda, j_lambda, np.array([x_init, y_init]), delta)
+            soln, delta_norm_hist = newton_solve(f_lambda, j_lambda, np.array([x_init, y_init]), delta)
             iters = len(delta_norm_hist)
             iterations_local[j, i] = iters
             if iters < cfg.MAX_ITERS:
@@ -103,6 +103,25 @@ def solve_grid(unique_solutions: npt.NDArray, x_coords: npt.NDArray, y_coords: n
             else:
                 solutions_local[j, i] = 0
     return solutions_local, iterations_local
+
+
+@nb.njit(target_backend=cfg.NUMBA_TARGET)
+def newton_solve(f_lam: Callable, j_lam: Callable, starting_guess: npt.NDArray, d: float) -> Tuple[npt.NDArray, npt.NDArray]:
+    """Perform Newton's method until either the solution converges or the maximum iterations are exceeded."""
+    current_guess = starting_guess
+    delta_norm_hist = []
+    delta_norm = np.float_(1000.0)
+    n_iters = 0
+    while delta_norm > cfg.EPSILON and n_iters < cfg.MAX_ITERS:
+        f_num = f_lam(current_guess[0], current_guess[1], d)
+        j_num = j_lam(current_guess[0], current_guess[1], d)
+        delta = np.linalg.solve(np.array(j_num), -np.array(f_num)).flatten()
+        current_guess = current_guess + delta
+        delta_norm = np.linalg.norm(delta)
+        delta_norm_hist.append(delta_norm)
+        n_iters += 1
+
+    return current_guess, np.array(delta_norm_hist)
 
 
 @nb.njit(target_backend=cfg.NUMBA_TARGET)
