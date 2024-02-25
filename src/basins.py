@@ -17,7 +17,6 @@ def produce_image_timed(unique_solns, x_coords, y_coords, f_lambda, j_lambda, de
 #  2. add logging
 #  3. Consolidate input validations in one place
 #  4. Animations can pan/zoom the grid
-#  5. Containerize with ffmpeg
 
 # Sympy computes the partial derivatives of each equation with respect to x and y to obtain Jacobian matrix,
 # then "lambdifies" them into Python functions with position args x, y, d.
@@ -54,4 +53,6 @@ if cfg.ANIMATE:
 else:
     produce_image_timed(first_frame_unique_solns, x_coords, y_coords, f_lambda, j_lambda, 0, 0)
 
-
+should_exit = 'no'
+while should_exit != 'exit':
+    should_exit = input('Input "exit" to exit...')

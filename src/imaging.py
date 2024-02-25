@@ -1,4 +1,5 @@
-import config as cfg, utils
+import utils
+import config as cfg
 
 import ffmpeg
 import os
