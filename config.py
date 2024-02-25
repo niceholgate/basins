@@ -9,7 +9,7 @@ f_sym = [y**2+2*x*y+2*x**2-4-0.5*sp.sin(15*(x+d)), y-10*x**2+3+d]
 X_PIXELS = int(3440/8)
 Y_PIXELS = int(1440/8)
 COLOUR_SET = 1
-ANIMATE = False
+ANIMATE = True
 
 DELTA = 2
 FRAMES = 5

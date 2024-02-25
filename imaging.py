@@ -7,7 +7,7 @@ import numpy as np
 import numpy.typing as npt
 import numba as nb
 from PIL import Image
-from typing import List, Union
+from typing import List, Union, Dict
 
 nb.config.DISABLE_JIT = cfg.DISABLE_JIT
 
@@ -57,23 +57,17 @@ def _smooth_grid(solutions: npt.NDArray) -> npt.NDArray:
     smoothed_solutions = solutions.copy()
     for j in range(1, smoothed_solutions.shape[0]-1):
         for i in range(1, smoothed_solutions.shape[1]-1):
-            adjacent_solutions = {}
-            diagonal_solutions = {}
+            adjacent_solutions: Dict[int, int] = {}
+            diagonal_solutions: Dict[int, int] = {}
             for delta_j in [-1, 0, 1]:
                 for delta_i in [-1, 0, 1]:
                     soln = smoothed_solutions[j + delta_j, i + delta_i]
                     if delta_j == delta_i == 0:
                         break
                     elif delta_j == 0 or delta_i == 0:
-                        if soln not in adjacent_solutions:
-                            adjacent_solutions[soln] = 1
-                        else:
-                            adjacent_solutions[soln] += 1
+                        adjacent_solutions[soln] = adjacent_solutions[soln] + 1 if soln in adjacent_solutions else 1
                     else:
-                        if soln not in diagonal_solutions:
-                            diagonal_solutions[soln] = 1
-                        else:
-                            diagonal_solutions[soln] += 1
+                        diagonal_solutions[soln] = diagonal_solutions[soln] + 1 if soln in diagonal_solutions else 1
 
             # Smooth pixel if its only equivalent neighbour is a diagonal (or no equivalent neighbours)
             if smoothed_solutions[j, i] not in adjacent_solutions\

@@ -1,10 +1,9 @@
-import config as cfg
+import config as cfg, utils
 
 import numpy as np
 import numpy.typing as npt
 import numba as nb
 import sys
-import matplotlib.pyplot as plt
 from typing import Tuple, Callable, List
 
 nb.config.DISABLE_JIT = cfg.DISABLE_JIT
@@ -37,21 +36,19 @@ def find_unique_solutions(f_lamb: Callable, j_lamb: Callable, delta: float) -> n
                       f' since the last new unique solution.')
                 break
 
-    if cfg.SHOW_UNIQUE_SOLUTIONS_AND_EXIT:
-        plt.figure()
-        x_solns = [soln[0] for soln in unique_solns]
-        y_solns = [soln[1] for soln in unique_solns]
-        plt.scatter(x_solns, y_solns)
-        plt.show(block=True)
-        sys.exit(0)
+    # Temporarily convert the solutions to tuples to sort them (ensures the random search returns the same result each
+    # time for a given system of equations) then put them into one 2D array
+    unique_solns_arr = np.array(sorted([tuple(s) for s in unique_solns]))
 
     if len(unique_solns) < 2:
         print('Found fewer than 2 unique solutions, cannot generate an image')
         sys.exit(0)
 
-    # Temporarily convert the solutions to tuples to sort them (ensures the random search returns the same result each
-    # time for a given system of equations) then put them into one 2D array
-    return np.array(sorted([tuple(s) for s in unique_solns]))
+    if cfg.SHOW_UNIQUE_SOLUTIONS_AND_EXIT:
+        utils.plot_unique_solutions(unique_solns_arr)
+        sys.exit(0)
+
+    return unique_solns_arr
 
 
 # @nb.njit(target_backend=cfg.NUMBA_TARGET)

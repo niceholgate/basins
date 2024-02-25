@@ -12,6 +12,12 @@ def produce_image_timed(unique_solns, x_coords, y_coords, f_lambda, j_lambda, de
     imaging.save_still(solutions, iterations, unique_solns,
                        smoothing=False, blending=False, colour_set=cfg.COLOUR_SET, frame=i)
 
+# TODO:
+#  1. add a CLI
+#  2. add logging
+#  3. Consolidate input validations in one place
+#  4. Animations can pan/zoom the grid
+#  5. Containerize with ffmpeg
 
 # Sympy computes the partial derivatives of each equation with respect to x and y to obtain Jacobian matrix,
 # then "lambdifies" them into Python functions with position args x, y, d.
@@ -19,16 +25,15 @@ j_sym = [[sp.diff(exp, sym) for sym in cfg.symbols[:2]] for exp in cfg.f_sym]
 f_lambda = nb.njit(sp.lambdify(cfg.symbols, cfg.f_sym, 'numpy'), target_backend=cfg.NUMBA_TARGET)
 j_lambda = nb.njit(sp.lambdify(cfg.symbols, j_sym, 'numpy'), target_backend=cfg.NUMBA_TARGET)
 
-# TODO: 1. add a CLI 2. add logging
-
 deltas = np.linspace(0, cfg.DELTA, cfg.FRAMES)
 first_frame_unique_solns = calc.find_unique_solutions(f_lambda, j_lambda, deltas[0])
 x_coords, y_coords = calc.get_image_pixel_coords(first_frame_unique_solns)
 
-
 if cfg.ANIMATE:
-    # Terminate with error if expression does not include a d term
-
+    # Terminate with error if system of equations does not include a d term
+    if all([cfg.symbols[2] not in exp.free_symbols for exp in cfg.f_sym]):
+        print('For animations, must include at least one "d" term (delta to perturb the equation solutions)')
+        sys.exit(0)
     # Assume that if the same number of solutions is found each time, the sorted solutions will
     # correspond to each other in sequence between different deltas
     unique_solns_per_delta = [first_frame_unique_solns]
