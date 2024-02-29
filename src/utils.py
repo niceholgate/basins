@@ -1,5 +1,3 @@
-import config as cfg
-
 import numpy.typing as npt
 import matplotlib.pyplot as plt
 from datetime import datetime
@@ -7,8 +5,8 @@ from pathlib import Path
 from typing import Callable
 
 
-def get_images_dir() -> Path:
-    images_dir = Path().cwd() / f'images/{cfg.start_time.strftime("%Y-%m-%d-%H-%M-%S")}'
+def get_images_dir(start_time: str, uuid: str) -> Path:
+    images_dir = Path().cwd() / f'images/{start_time}_{uuid}'
     if not images_dir.exists():
         images_dir.mkdir(parents=True)
     return images_dir

@@ -1,4 +1,5 @@
-import config as cfg, utils
+import src.config as cfg
+import src.utils as utils
 
 import numpy as np
 import numpy.typing as npt

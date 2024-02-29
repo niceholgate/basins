@@ -1,7 +1,12 @@
 FROM python:3.10
+
 ADD src/ basins/src/
 ADD requirements.txt basins/
-ADD config.py basins/src/
-RUN apt-get -y update && apt-get -y upgrade && apt-get install -y ffmpeg
+
+RUN apt-get -y update && apt-get -y upgrade && apt-get install -y ffmpeg --fix-missing
 RUN pip install -r basins/requirements.txt
-CMD ["python", "basins/src/basins.py"]
+
+EXPOSE 8000
+
+WORKDIR /basins
+CMD [ "uvicorn", "src.main:app", "--host=0.0.0.0", "--port=8000"]

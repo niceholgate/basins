@@ -1,5 +1,5 @@
-import utils
-import config as cfg
+import src.config as cfg
+import src.utils as utils
 
 import ffmpeg
 import os
@@ -9,11 +9,12 @@ import numpy.typing as npt
 import numba as nb
 from PIL import Image
 from typing import List, Union, Dict
+from pathlib import Path
 
 nb.config.DISABLE_JIT = cfg.DISABLE_JIT
 
 
-def save_still(solutions: npt.NDArray, iterations: npt.NDArray, unique_solns: npt.NDArray,
+def save_still(images_dir: Path, solutions: npt.NDArray, iterations: npt.NDArray, unique_solns: npt.NDArray,
                smoothing: bool = True, blending: bool = True, colour_set: Union[int, List[str]] = 0, frame: int = 0):
     """Generate an image with the specified colour scheme, or a range of colour schemes if none specified."""
     pixel_grid = np.zeros((cfg.Y_PIXELS, cfg.X_PIXELS, 3), dtype=np.uint8)
@@ -35,16 +36,16 @@ def save_still(solutions: npt.NDArray, iterations: npt.NDArray, unique_solns: np
             if iterations[j, i] < cfg.BLACKOUT_ITERS:
                 pixel_grid[j, i, :] = [int(x*255) for x in rgb_colours[smoothed_solutions[j, i]-1]]
     blended_pixel_grid = _blend_grid(pixel_grid, blending_arrays, 0) if blending else pixel_grid
-    Image.fromarray(blended_pixel_grid, 'RGB').save(utils.get_images_dir() / f'frame-{frame_formatted}.png')
+    print('saving image file ' + str(images_dir / f'frame-{frame_formatted}.png'))
+    Image.fromarray(blended_pixel_grid, 'RGB').save(images_dir / f'frame-{frame_formatted}.png')
 
 
-def stills_to_video():
+def stills_to_video(images_dir: Path, fps: int):
     """Use ffmpeg (via ffmpeg-python package) to assemble the image frames into a video."""
-    images_dir = utils.get_images_dir()
     images = [img for img in os.listdir(images_dir) if img.endswith(".png")]
     image_name_root = images[0].split('-')[0]
     ffmpeg.input(images_dir/f'{image_name_root}-{cfg.FRAME_COUNT_PADDING.strip("{").strip("}").replace(":","%")}.png',
-                 pattern_type='sequence', framerate=cfg.FPS)\
+                 pattern_type='sequence', framerate=fps)\
         .output(str(images_dir/f'video{cfg.FPS}.mp4'))\
         .global_args('-loglevel', 'error')\
         .run()

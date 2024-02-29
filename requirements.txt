@@ -1,8 +1,11 @@
-numpy==1.26.3
+numpy==1.26.4
 sympy~=1.12
-matplotlib==3.8.2
-numba~=0.58.1
+matplotlib==3.8.3
+numba==0.59.0
 scipy==1.12.0
 Pillow==10.2.0
 ffmpeg-python
 mypy
+fastapi~=0.110.0
+uvicorn[standard]
+pydantic~=2.6.3
