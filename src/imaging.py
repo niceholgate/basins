@@ -1,5 +1,4 @@
 import src.config as cfg
-import src.utils as utils
 
 import ffmpeg
 import os
@@ -14,10 +13,10 @@ from pathlib import Path
 nb.config.DISABLE_JIT = cfg.DISABLE_JIT
 
 
-def save_still(images_dir: Path, solutions: npt.NDArray, iterations: npt.NDArray, unique_solns: npt.NDArray,
+def save_still(images_dir: Path, solutions: npt.NDArray, iterations: npt.NDArray, unique_solns: npt.NDArray, y_pixels: int, x_pixels: int,
                smoothing: bool = True, blending: bool = True, colour_set: Union[int, List[str]] = 0, frame: int = 0):
     """Generate an image with the specified colour scheme, or a range of colour schemes if none specified."""
-    pixel_grid = np.zeros((cfg.Y_PIXELS, cfg.X_PIXELS, 3), dtype=np.uint8)
+    pixel_grid = np.zeros((y_pixels, x_pixels, 3), dtype=np.uint8)
     smoothed_solutions = _smooth_grid(solutions) if smoothing else solutions
     blending_arrays = _create_blending_arrays(iterations) if blending else []
 
@@ -31,8 +30,8 @@ def save_still(images_dir: Path, solutions: npt.NDArray, iterations: npt.NDArray
             idx += 1
     rgb_colours = [matplotlib.colors.to_rgb(colour) for colour in colour_set]
 
-    for j in range(cfg.Y_PIXELS):
-        for i in range(cfg.X_PIXELS):
+    for j in range(y_pixels):
+        for i in range(x_pixels):
             if iterations[j, i] < cfg.BLACKOUT_ITERS:
                 pixel_grid[j, i, :] = [int(x*255) for x in rgb_colours[smoothed_solutions[j, i]-1]]
     blended_pixel_grid = _blend_grid(pixel_grid, blending_arrays, 0) if blending else pixel_grid
@@ -46,7 +45,7 @@ def stills_to_video(images_dir: Path, fps: int):
     image_name_root = images[0].split('-')[0]
     ffmpeg.input(images_dir/f'{image_name_root}-{cfg.FRAME_COUNT_PADDING.strip("{").strip("}").replace(":","%")}.png',
                  pattern_type='sequence', framerate=fps)\
-        .output(str(images_dir/f'video{cfg.FPS}.mp4'))\
+        .output(str(images_dir/f'video{fps}.mp4'))\
         .global_args('-loglevel', 'error')\
         .run()
 
@@ -118,10 +117,10 @@ def _create_blending_arrays(iterations: npt.NDArray) -> List[npt.NDArray]:
 
 
 @nb.njit(target_backend=cfg.NUMBA_TARGET)
-def _create_blending_array(j: int, i: int, iterations: float, cbrt_iterations: float) -> npt.NDArray:
+def _create_blending_array(y_pixels: int, x_pixels: int, j: int, i: int, iterations: float, cbrt_iterations: float) -> npt.NDArray:
     half_width = int(cbrt_iterations) if iterations > 8 else 0
-    j_range = range(max(0, j - half_width), min(cfg.Y_PIXELS, j + half_width + 1))
-    i_range = range(max(0, i - half_width), min(cfg.X_PIXELS, i + half_width + 1))
+    j_range = range(max(0, j - half_width), min(y_pixels, j + half_width + 1))
+    i_range = range(max(0, i - half_width), min(x_pixels, i + half_width + 1))
     n_rows = len(j_range) * len(i_range)
     weights = np.zeros((n_rows, 3), dtype=np.float_)
     row = 0

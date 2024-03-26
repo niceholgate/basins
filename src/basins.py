@@ -1,18 +1,17 @@
 import src.config as cfg
 import src.calc as calc
 import src.imaging as imaging
+import src.types as types
 import src.utils as utils
 
 import sys
-import numpy as np
-import sympy as sp
-import numba as nb
 from datetime import datetime
+
 
 @utils.timed
 def produce_image_timed(images_dir, colour_set, unique_solns, x_coords, y_coords, f_lambda, j_lambda, delta, i):
     solutions, iterations = calc.solve_grid(unique_solns, x_coords, y_coords, f_lambda, j_lambda, delta)
-    imaging.save_still(images_dir, solutions, iterations, unique_solns,
+    imaging.save_still(images_dir, solutions, iterations, unique_solns, y_coords.shape[0], x_coords.shape[0],
                        smoothing=False, blending=False, colour_set=colour_set, frame=i)
 
 # TODO:
@@ -20,21 +19,15 @@ def produce_image_timed(images_dir, colour_set, unique_solns, x_coords, y_coords
 #  2. add logging
 #  3. Consolidate input validations in one place
 #  4. Animations can pan/zoom the grid
-#  5. queue and RL the image requests
-
-# Sympy computes the partial derivatives of each equation with respect to x and y to obtain Jacobian matrix,
-# then "lambdifies" them into Python functions with position args x, y, d.
-j_sym = [[sp.diff(exp, sym) for sym in cfg.symbols[:2]] for exp in cfg.f_sym]
-f_lambda = nb.njit(sp.lambdify(cfg.symbols, cfg.f_sym, 'numpy'), target_backend=cfg.NUMBA_TARGET)
-j_lambda = nb.njit(sp.lambdify(cfg.symbols, j_sym, 'numpy'), target_backend=cfg.NUMBA_TARGET)
+#  5. queue and RL the requests
+#  6. save inputs with images
 
 
-def create_animation(uuid: str, colour_set: int, delta: int, frames: int, fps: int):
+def create_animation(uuid: str, params: types.AnimationParameters):
     images_dir = utils.get_images_dir(datetime.now().strftime("%Y-%m-%d-%H-%M-%S"), uuid)
 
-    deltas = np.linspace(0, delta, frames)
-    first_frame_unique_solns = calc.find_unique_solutions(f_lambda, j_lambda, deltas[0])
-    x_coords, y_coords = calc.get_image_pixel_coords(first_frame_unique_solns)
+    first_frame_unique_solns = calc.find_unique_solutions(params.f_lambda, params.j_lambda, params.deltas[0])
+    x_coords, y_coords = calc.get_image_pixel_coords(params.y_pixels, params.x_pixels, first_frame_unique_solns)
 
     # Terminate with error if system of equations does not include a d term
     if all([cfg.symbols[2] not in exp.free_symbols for exp in cfg.f_sym]):
@@ -44,25 +37,25 @@ def create_animation(uuid: str, colour_set: int, delta: int, frames: int, fps: i
     # correspond to each other in sequence between different deltas
     unique_solns_per_delta = [first_frame_unique_solns]
     expected_number_of_solns = len(unique_solns_per_delta[0])
-    for delta in deltas[1:]:
-        this_delta_unique_solns = calc.find_unique_solutions(f_lambda, j_lambda, delta)
+    for delta in params.deltas[1:]:
+        this_delta_unique_solns = calc.find_unique_solutions(params.f_lambda, params.j_lambda, delta)
         if len(this_delta_unique_solns) > expected_number_of_solns:
             print(f'Terminating because number of solutions increased from {expected_number_of_solns}'
                   f' to {len(this_delta_unique_solns)} for delta={delta}')
             sys.exit(0)
         unique_solns_per_delta.append(this_delta_unique_solns)
     total_duration = 0.0
-    for i, delta in enumerate(deltas):
-        print(f'Now solving the grid for frame {i + 1} of {len(deltas)} (delta={delta})...')
-        total_duration += produce_image_timed(images_dir, colour_set, unique_solns_per_delta[i], x_coords, y_coords, f_lambda, j_lambda, delta, i)
-        utils.print_time_remaining_estimate(i, len(deltas), total_duration)
-    imaging.stills_to_video(images_dir, fps)
+    for i, delta in enumerate(params.deltas):
+        print(f'Now solving the grid for frame {i + 1} of {len(params.deltas)} (delta={delta})...')
+        total_duration += produce_image_timed(images_dir, params.colour_set, unique_solns_per_delta[i], x_coords, y_coords, params.f_lambda, params.j_lambda, delta, i)
+        utils.print_time_remaining_estimate(i, len(params.deltas), total_duration)
+    imaging.stills_to_video(images_dir, params.fps)
 
 
-def create_still(uuid: str, colour_set: int):
+def create_still(uuid: str, params: types.StillParameters):
     images_dir = utils.get_images_dir(datetime.now().strftime("%Y-%m-%d-%H-%M-%S"), uuid)
 
-    first_frame_unique_solns = calc.find_unique_solutions(f_lambda, j_lambda, 0)
-    x_coords, y_coords = calc.get_image_pixel_coords(first_frame_unique_solns)
-    produce_image_timed(images_dir, colour_set, first_frame_unique_solns, x_coords, y_coords, f_lambda, j_lambda, 0, 0)
+    first_frame_unique_solns = calc.find_unique_solutions(params.f_lambda, params.j_lambda, 0)
+    x_coords, y_coords = calc.get_image_pixel_coords(params.y_pixels, params.x_pixels, first_frame_unique_solns)
+    produce_image_timed(images_dir, params.colour_set, first_frame_unique_solns, x_coords, y_coords, params.f_lambda, params.j_lambda, 0, 0)
 

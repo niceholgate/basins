@@ -1,10 +1,11 @@
 FROM python:3.10
 
-ADD src/ basins/src/
 ADD requirements.txt basins/
 
 RUN apt-get -y update && apt-get -y upgrade && apt-get install -y ffmpeg --fix-missing
 RUN pip install -r basins/requirements.txt
+
+ADD src/ basins/src/
 
 EXPOSE 8000
 

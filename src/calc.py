@@ -53,7 +53,7 @@ def find_unique_solutions(f_lamb: Callable, j_lamb: Callable, delta: float) -> n
 
 
 # @nb.njit(target_backend=cfg.NUMBA_TARGET)
-def get_image_pixel_coords(unique_solns: npt.NDArray) -> Tuple[npt.NDArray, npt.NDArray]:
+def get_image_pixel_coords(y_pixels: int, x_pixels: int, unique_solns: npt.NDArray) -> Tuple[npt.NDArray, npt.NDArray]:
     """Get the coordinates of all the pixels in the image, ensuring that all the known solutions to the system of
     equations fall safely within the bounds of the image."""
     # Collapse to a grid of final image's aspect ratio and with some borders around the unique solutions
@@ -63,25 +63,25 @@ def get_image_pixel_coords(unique_solns: npt.NDArray) -> Tuple[npt.NDArray, npt.
     # Need to handle cases where solutions are collinear in x or y directions
     if y_min == y_max:
         x_range = (x_max - x_min) * 4
-        y_range = x_range * cfg.Y_PIXELS / cfg.X_PIXELS
+        y_range = x_range * y_pixels / x_pixels
     elif x_min == x_max:
         y_range = (y_max - y_min) * 4
-        x_range = y_range * cfg.X_PIXELS / cfg.Y_PIXELS
+        x_range = y_range * x_pixels / y_pixels
     else:
         x_range = (x_max - x_min) * 4
         y_range = (y_max - y_min) * 4
 
-    return np.linspace(x_mean-x_range/2, x_mean+x_range/2, cfg.X_PIXELS),\
-           np.linspace(y_mean-y_range/2, y_mean+y_range/2, cfg.Y_PIXELS)
+    return np.linspace(x_mean-x_range/2, x_mean+x_range/2, x_pixels),\
+           np.linspace(y_mean-y_range/2, y_mean+y_range/2, y_pixels)
 
 
 @nb.njit(target_backend=cfg.NUMBA_TARGET)
 def solve_grid(unique_solutions: npt.NDArray, x_coords: npt.NDArray, y_coords: npt.NDArray, f_lambda: Callable,
                j_lambda: Callable, delta: float) -> Tuple[npt.NDArray, npt.NDArray]:
     """Find which unique solution is reached for each pixel, and how many Newton's method iterations it took."""
-    solutions_local = np.zeros((cfg.Y_PIXELS, cfg.X_PIXELS), dtype=np.int_)
-    iterations_local = np.zeros((cfg.Y_PIXELS, cfg.X_PIXELS), dtype=np.int_)
-    for j in range(cfg.Y_PIXELS):
+    solutions_local = np.zeros((y_coords.shape[0], x_coords.shape[0]), dtype=np.int_)
+    iterations_local = np.zeros((y_coords.shape[0], x_coords.shape[0]), dtype=np.int_)
+    for j in range(y_coords.shape[0]):
         y_init = y_coords[j]
         for i, x_init in enumerate(x_coords):
             soln, delta_norm_hist = newton_solve(f_lambda, j_lambda, np.array([x_init, y_init]), delta)
