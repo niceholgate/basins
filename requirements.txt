@@ -9,3 +9,4 @@ mypy
 fastapi~=0.110.0
 uvicorn[standard]
 pydantic~=2.6.3
+pytest~=8.1.1

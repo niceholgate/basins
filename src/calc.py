@@ -74,6 +74,14 @@ def get_image_pixel_coords(y_pixels: int, x_pixels: int, unique_solns: npt.NDArr
     return np.linspace(x_mean-x_range/2, x_mean+x_range/2, x_pixels),\
            np.linspace(y_mean-y_range/2, y_mean+y_range/2, y_pixels)
 
+def get_index_of_matching_unique_soln(unique_solutions: npt.NDArray, soln: npt.NDArray) -> int:
+    match = -1
+    for unique_soln_idx in range(unique_solutions.shape[0]):
+        if _points_approx_equal(unique_solutions[unique_soln_idx, :], soln):
+            match = unique_soln_idx + 1
+            break
+    return match
+
 
 @nb.njit(target_backend=cfg.NUMBA_TARGET)
 def solve_grid(unique_solutions: npt.NDArray, x_coords: npt.NDArray, y_coords: npt.NDArray, f_lambda: Callable,
@@ -88,11 +96,7 @@ def solve_grid(unique_solutions: npt.NDArray, x_coords: npt.NDArray, y_coords: n
             iters = len(delta_norm_hist)
             iterations_local[j, i] = iters
             if iters < cfg.MAX_ITERS:
-                match = -1
-                for unique_soln_idx in range(unique_solutions.shape[0]):
-                    if _points_approx_equal(unique_solutions[unique_soln_idx, :], soln):
-                        match = unique_soln_idx + 1
-                        break
+                match = get_index_of_matching_unique_soln(unique_solutions, soln)
                 if match != -1:
                     solutions_local[j, i] = match
                 else:
@@ -100,7 +104,59 @@ def solve_grid(unique_solutions: npt.NDArray, x_coords: npt.NDArray, y_coords: n
                     solutions_local[j, i] = 0
             else:
                 solutions_local[j, i] = 0
+
     return solutions_local, iterations_local
+
+
+@nb.njit(target_backend=cfg.NUMBA_TARGET)
+def solve_grid_quadtrees(unique_solutions: npt.NDArray, x_coords: npt.NDArray, y_coords: npt.NDArray, f_lambda: Callable,
+               j_lambda: Callable, delta: float) -> Tuple[npt.NDArray, npt.NDArray]:
+    """Find which unique solution is reached for each pixel, and how many Newton's method iterations it took."""
+    solutions_local = np.zeros((y_coords.shape[0], x_coords.shape[0]), dtype=np.int_)
+    iterations_local = np.zeros((y_coords.shape[0], x_coords.shape[0]), dtype=np.int_)
+    # for j in range(y_coords.shape[0]):
+    #     y_init = y_coords[j]
+    #     for i, x_init in enumerate(x_coords):
+
+
+    # Create a stack of QuadTrees?
+    stack = [QuadTree((0, x_coords.shape[0]), (0, y_coords.shape[0]))]
+
+    # Iterate around the edges of the current QuadTree calculating the solution, and note if they are all identical
+    qt = stack.pop()
+    last_soln = None
+    identical_solns = True
+    for j in range(qt.y_lims[0], qt.y_lims[1]+1):
+        y_init = y_coords[j]
+        for i, x_init in qt.x_lims:
+            soln, delta_norm_hist = newton_solve(f_lambda, j_lambda, np.array([x_init, y_init]), delta)
+            iters = len(delta_norm_hist)
+            iterations_local[j, i] = iters
+            if iters < cfg.MAX_ITERS:
+                match = get_index_of_matching_unique_soln(unique_solutions, soln)
+                if match != -1:
+                    solutions_local[j, i] = match
+                    if identical_solns:
+                        if last_soln is None:
+                            last_soln = match
+                        else:
+                            if match != last_soln:
+                                identical_solns = False
+
+                else:
+                    print(f'WARNING: Image will ignore a novel solution found on the grid: {soln}')
+                    solutions_local[j, i] = 0
+                    identical_solns = False
+                    last_soln = None
+            else:
+                solutions_local[j, i] = 0
+                identical_solns = False
+                last_soln = None
+
+
+    return solutions_local, iterations_local
+
+
 
 
 @nb.njit(target_backend=cfg.NUMBA_TARGET)
@@ -125,3 +181,43 @@ def newton_solve(f_lam: Callable, j_lam: Callable, starting_guess: npt.NDArray, 
 @nb.njit(target_backend=cfg.NUMBA_TARGET)
 def _points_approx_equal(p1: npt.NDArray, p2: npt.NDArray) -> bool:
     return bool(np.linalg.norm(p1 - p2) < 2 * cfg.EPSILON)
+
+
+class QuadTree:
+    x_lims: Tuple[int, int]
+    y_lims: Tuple[int, int]
+    nw: 'QuadTree'
+    ne: 'QuadTree'
+    sw: 'QuadTree'
+    se: 'QuadTree'
+
+    def __init__(self, x_lims: Tuple[int, int], y_lims: Tuple[int, int]):
+        self.x_lims = x_lims
+        self.y_lims = y_lims
+
+    def iterate_boundary_coordinates(self):
+        for x in range(self.x_lims[0], self.x_lims[1] + 1):
+            yield self.y_lims[0], x
+        for y in range(self.y_lims[0], self.y_lims[1] + 1):
+            yield y, self.x_lims[1]
+        for x in reversed(range(self.x_lims[0], self.x_lims[1] + 1)):
+            yield self.y_lims[1], x
+        for y in reversed(range(self.y_lims[0], self.y_lims[1] + 1)):
+            yield y, self.x_lims[0]
+
+    def subdivide(self):
+        x_mid = np.ceil(np.mean(self.x_lims))
+        y_mid = np.ceil(np.mean(self.y_lims))
+
+        # Cannot subdivide a point
+        if self.x_lims[0] == self.x_lims[1] and self.y_lims[0] == self.y_lims[1]:
+            return
+        # For a single column, can only subdivide in y direction
+        if self.x_lims[0] == self.x_lims[1]:
+            self.nw = QuadTree((x_mid, x_mid), (self.y_lims[0], y_mid))
+            self.sw = QuadTree()
+        # For a single row, can only subdivide in x direction
+
+
+        self.nw = QuadTree((self.x_lims[0], x_mid), (self.y_lims[0], y_mid))
+        self.ne = QuadTree
