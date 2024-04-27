@@ -1,5 +1,6 @@
 import src.config as cfg
 import src.utils as utils
+from src.quad_tree import QuadTree
 
 import numpy as np
 import numpy.typing as npt
@@ -74,6 +75,7 @@ def get_image_pixel_coords(y_pixels: int, x_pixels: int, unique_solns: npt.NDArr
     return np.linspace(x_mean-x_range/2, x_mean+x_range/2, x_pixels),\
            np.linspace(y_mean-y_range/2, y_mean+y_range/2, y_pixels)
 
+
 def get_index_of_matching_unique_soln(unique_solutions: npt.NDArray, soln: npt.NDArray) -> int:
     match = -1
     for unique_soln_idx in range(unique_solutions.shape[0]):
@@ -81,6 +83,18 @@ def get_index_of_matching_unique_soln(unique_solutions: npt.NDArray, soln: npt.N
             match = unique_soln_idx + 1
             break
     return match
+
+
+def set_pixel_values(solutions_arr: npt.NDArray, iterations_arr: npt.NDArray, solution_pixel: npt.NDArray,
+                     iterations_pixel: int, j: int, i: int, unique_solutions: npt.NDArray):
+    if solutions_arr[j, i] == 0:
+        iterations_arr[j, i] = iterations_pixel
+        if iterations_pixel < cfg.MAX_ITERS:
+            match = get_index_of_matching_unique_soln(unique_solutions, solution_pixel)
+            if match != -1:
+                solutions_arr[j, i] = match
+            else:
+                print(f'WARNING: Image will ignore a novel solution found on the grid: {solution_pixel}')
 
 
 @nb.njit(target_backend=cfg.NUMBA_TARGET)
@@ -92,18 +106,8 @@ def solve_grid(unique_solutions: npt.NDArray, x_coords: npt.NDArray, y_coords: n
     for j in range(y_coords.shape[0]):
         y_init = y_coords[j]
         for i, x_init in enumerate(x_coords):
-            soln, delta_norm_hist = newton_solve(f_lambda, j_lambda, np.array([x_init, y_init]), delta)
-            iters = len(delta_norm_hist)
-            iterations_local[j, i] = iters
-            if iters < cfg.MAX_ITERS:
-                match = get_index_of_matching_unique_soln(unique_solutions, soln)
-                if match != -1:
-                    solutions_local[j, i] = match
-                else:
-                    print(f'WARNING: Image will ignore a novel solution found on the grid: {soln}')
-                    solutions_local[j, i] = 0
-            else:
-                solutions_local[j, i] = 0
+            soln, iters = newton_solve(f_lambda, j_lambda, np.array([x_init, y_init]), delta)
+            set_pixel_values(solutions_local, iterations_local, soln, iters, j, i, unique_solutions)
 
     return solutions_local, iterations_local
 
@@ -114,56 +118,59 @@ def solve_grid_quadtrees(unique_solutions: npt.NDArray, x_coords: npt.NDArray, y
     """Find which unique solution is reached for each pixel, and how many Newton's method iterations it took."""
     solutions_local = np.zeros((y_coords.shape[0], x_coords.shape[0]), dtype=np.int_)
     iterations_local = np.zeros((y_coords.shape[0], x_coords.shape[0]), dtype=np.int_)
-    # for j in range(y_coords.shape[0]):
-    #     y_init = y_coords[j]
-    #     for i, x_init in enumerate(x_coords):
 
+    top_qt = QuadTree((0, x_coords.shape[0]), (0, y_coords.shape[0]), None)
 
-    # Create a stack of QuadTrees?
-    stack = [QuadTree((0, x_coords.shape[0]), (0, y_coords.shape[0]))]
+    # Iterate around the boundary of the current QuadTree calculating the solution, and note if they are all identical
+    qt = top_qt
+    last_boundary_soln = None
+    unique_boundary_soln = True
+    for i, j in qt.boundary_coordinates_generator():
+        soln, iters = newton_solve_caching(f_lambda, j_lambda, np.array([x_coords[i], y_coords[j]]), delta,
+                                           solutions_local, iterations_local, i, j)
+        set_pixel_values(solutions_local, iterations_local, soln, iters, j, i, unique_solutions)
+        if unique_boundary_soln:
+            if last_boundary_soln:
+                unique_boundary_soln = solutions_local[j, i] == last_boundary_soln
+            last_boundary_soln = solutions_local[j, i]
 
-    # Iterate around the edges of the current QuadTree calculating the solution, and note if they are all identical
-    qt = stack.pop()
-    last_soln = None
-    identical_solns = True
-    for j in range(qt.y_lims[0], qt.y_lims[1]+1):
-        y_init = y_coords[j]
-        for i, x_init in qt.x_lims:
-            soln, delta_norm_hist = newton_solve(f_lambda, j_lambda, np.array([x_init, y_init]), delta)
-            iters = len(delta_norm_hist)
-            iterations_local[j, i] = iters
-            if iters < cfg.MAX_ITERS:
-                match = get_index_of_matching_unique_soln(unique_solutions, soln)
-                if match != -1:
-                    solutions_local[j, i] = match
-                    if identical_solns:
-                        if last_soln is None:
-                            last_soln = match
-                        else:
-                            if match != last_soln:
-                                identical_solns = False
+    # If they are all identical around the boundary, check some random interior points.
+    # If those are all the same too, then fill the whole QuadTree area with that solution.
+    if unique_boundary_soln:
+        n_interior_pixels = max((qt.x_lims[1]-qt.x_lims[0]-1), 0)*max((qt.y_lims[1]-qt.y_lims[0]-1), 0)
+        pixels_checked = 0
+        while pixels_checked < 20 and pixels_checked < n_interior_pixels/2:
+            rand_i, rand_j = qt.random_interior_coordinates()
+            soln, iters = newton_solve_caching(f_lambda, j_lambda, np.array([x_coords[rand_i], y_coords[rand_j]]), delta,
+                                               solutions_local, iterations_local, rand_i, rand_j)
+            set_pixel_values(solutions_local, iterations_local, soln, iters, rand_j, rand_i, unique_solutions)
+            unique_boundary_soln = solutions_local[rand_j, rand_i] == last_boundary_soln
+            if not unique_boundary_soln:
+                break
 
-                else:
-                    print(f'WARNING: Image will ignore a novel solution found on the grid: {soln}')
-                    solutions_local[j, i] = 0
-                    identical_solns = False
-                    last_soln = None
-            else:
-                solutions_local[j, i] = 0
-                identical_solns = False
-                last_soln = None
+        if unique_boundary_soln:
+            solutions_local[qt.y_lims[0]:qt.y_lims[1]+1, qt.x_lims[0]:qt.x_lims[1]+1] = last_boundary_soln
+            qt.terminal = True
 
 
     return solutions_local, iterations_local
 
 
+@nb.njit(target_backend=cfg.NUMBA_TARGET)
+def newton_solve_caching(f_lam: Callable, j_lam: Callable, starting_guess: npt.NDArray, d: float,
+                         solutions: npt.NDArray, iterations: npt.NDArray, i: int, j: int) -> Tuple[npt.NDArray, int]:
+    if solutions[j, i] == 0:
+        soln, iters = newton_solve(f_lam, j_lam, starting_guess, d)
+        solutions[j, i] = soln
+        iterations[j, i] = iters
+    return solutions[j, i], iterations[j, i]
 
 
 @nb.njit(target_backend=cfg.NUMBA_TARGET)
-def newton_solve(f_lam: Callable, j_lam: Callable, starting_guess: npt.NDArray, d: float) -> Tuple[npt.NDArray, npt.NDArray]:
+def newton_solve(f_lam: Callable, j_lam: Callable, starting_guess: npt.NDArray, d: float) -> Tuple[npt.NDArray, int]:
     """Perform Newton's method until either the solution converges or the maximum iterations are exceeded."""
     current_guess = starting_guess
-    delta_norm_hist = []
+    # delta_norm_hist = []
     delta_norm = np.float_(1000.0)
     n_iters = 0
     while delta_norm > cfg.EPSILON and n_iters < cfg.MAX_ITERS:
@@ -172,10 +179,10 @@ def newton_solve(f_lam: Callable, j_lam: Callable, starting_guess: npt.NDArray, 
         delta = np.linalg.solve(np.array(j_num), -np.array(f_num)).flatten()
         current_guess = current_guess + delta
         delta_norm = np.linalg.norm(delta)
-        delta_norm_hist.append(delta_norm)
+        # delta_norm_hist.append(delta_norm)
         n_iters += 1
 
-    return current_guess, np.array(delta_norm_hist)
+    return current_guess, n_iters
 
 
 @nb.njit(target_backend=cfg.NUMBA_TARGET)
