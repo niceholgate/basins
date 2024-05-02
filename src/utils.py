@@ -1,8 +1,27 @@
+import src.config as cfg
+
 import numpy.typing as npt
 import matplotlib.pyplot as plt
+import sympy as sp
+import numba as nb
 from datetime import datetime
 from pathlib import Path
-from typing import Callable
+from typing import Callable, List
+
+
+SYMBOLS = sp.symbols('x y d')
+
+
+def get_lambdas(expressions: List[str]):
+    """
+    # Sympy computes the partial derivatives of each equation with respect to x and y to obtain Jacobian matrix,
+    # then "lambdifies" them into Python functions with position args x, y, d.
+    """
+    f_sym = [sp.parsing.sympy_parser.parse_expr(ex) for ex in expressions]
+    j_sym = [[sp.diff(exp, sym) for sym in SYMBOLS[:2]] for exp in f_sym]
+    f_lambda = nb.njit(sp.lambdify(SYMBOLS, f_sym, 'numpy'), target_backend=cfg.NUMBA_TARGET)
+    j_lambda = nb.njit(sp.lambdify(SYMBOLS, j_sym, 'numpy'), target_backend=cfg.NUMBA_TARGET)
+    return f_lambda, j_lambda
 
 
 def get_images_dir(start_time: str, uuid: str) -> Path:

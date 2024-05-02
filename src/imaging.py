@@ -1,4 +1,5 @@
 import src.config as cfg
+from src.solver import Solver
 
 import ffmpeg
 import os
@@ -13,26 +14,26 @@ from pathlib import Path
 nb.config.DISABLE_JIT = cfg.DISABLE_JIT
 
 
-def save_still(images_dir: Path, solutions: npt.NDArray, iterations: npt.NDArray, unique_solns: npt.NDArray, y_pixels: int, x_pixels: int,
-               smoothing: bool = True, blending: bool = True, colour_set: Union[int, List[str]] = 0, frame: int = 0):
+def save_still(images_dir: Path, solver: Solver, smoothing: bool = True, blending: bool = True, colour_set: Union[int, List[str]] = 0, frame: int = 0):
     """Generate an image with the specified colour scheme, or a range of colour schemes if none specified."""
-    pixel_grid = np.zeros((y_pixels, x_pixels, 3), dtype=np.uint8)
-    smoothed_solutions = _smooth_grid(solutions) if smoothing else solutions
-    blending_arrays = _create_blending_arrays(iterations) if blending else []
+    pixel_grid = np.zeros((solver.solutions_grid.shape[0], solver.solutions_grid.shape[1], 3), dtype=np.uint8)
+    smoothed_solutions = _smooth_grid(solver.solutions_grid) if smoothing else solver.solutions_grid
+    blending_arrays = _create_blending_arrays(solver.iterations_grid) if blending else []
 
     frame_formatted = cfg.FRAME_COUNT_PADDING.format(frame)
+    unique_solns_this_delta = solver.unique_solutions_by_delta[solver.delta]
 
-    if not (isinstance(colour_set, list) and len(colour_set) == unique_solns.shape[0]):
+    if not (isinstance(colour_set, list) and len(colour_set) == unique_solns_this_delta.shape[0]):
         idx = colour_set if isinstance(colour_set, int) else 0
         colour_set = []
-        while len(colour_set) < unique_solns.shape[0]:
+        while len(colour_set) < unique_solns_this_delta.shape[0]:
             colour_set.append(cfg.DEFAULT_COLOURS[idx % len(cfg.DEFAULT_COLOURS)])
             idx += 1
     rgb_colours = [matplotlib.colors.to_rgb(colour) for colour in colour_set]
 
-    for j in range(y_pixels):
-        for i in range(x_pixels):
-            if iterations[j, i] < cfg.BLACKOUT_ITERS:
+    for j in range(solver.solutions_grid.shape[0]):
+        for i in range(solver.solutions_grid.shape[1]):
+            if solver.iterations_grid[j, i] < cfg.BLACKOUT_ITERS:
                 pixel_grid[j, i, :] = [int(x*255) for x in rgb_colours[smoothed_solutions[j, i]-1]]
     blended_pixel_grid = _blend_grid(pixel_grid, blending_arrays, 0) if blending else pixel_grid
     print('saving image file ' + str(images_dir / f'frame-{frame_formatted}.png'))
