@@ -3,6 +3,7 @@ import src.imaging as imaging
 import src.types as types
 import src.utils as utils
 
+from sys import exit
 from datetime import datetime
 
 
@@ -22,17 +23,21 @@ def produce_image_timed(solver: Solver, images_dir, colour_set, i):
 
 def create_animation(uuid: str, params: types.AnimationParameters):
     images_dir = utils.get_images_dir(datetime.now().strftime("%Y-%m-%d-%H-%M-%S"), uuid)
-    solver = Solver(params.f_lambda, params.j_lambda, params.y_pixels, params.x_pixels, params.deltas[0])
+    solvers = [Solver(params.f_lambda, params.j_lambda, params.y_pixels, params.x_pixels, params.deltas[0])]
+    expected_number_of_solns = solvers[0].unique_solutions.shape[0]
 
     # Assume that if the same number of solutions is found each time, the sorted solutions will
     # correspond to each other in sequence between different deltas
     for delta in params.deltas[1:]:
-        solver.set_delta_and_find_unique_solutions(delta)
+        solvers.append(Solver(params.f_lambda, params.j_lambda, params.y_pixels, params.x_pixels, delta))
+        if solvers[-1].unique_solutions.shape[0] > expected_number_of_solns:
+            print(f'Terminating because number of solutions increased from {expected_number_of_solns}'
+                  f' to {solvers[-1].unique_solutions.shape[0]} for delta={delta}')
+            exit(0)
 
     total_duration = 0.0
-    for i, delta in enumerate(params.deltas):
-        print(f'Now solving the grid for frame {i + 1} of {len(params.deltas)} (delta={delta})...')
-        solver.set_delta_and_find_unique_solutions(delta)
+    for i, solver in enumerate(solvers):
+        print(f'Now solving the grid for frame {i + 1} of {len(solvers)} (delta={solver.delta})...')
         total_duration += produce_image_timed(solver, images_dir, params.colour_set, i)
         utils.print_time_remaining_estimate(i, len(params.deltas), total_duration)
     imaging.stills_to_video(images_dir, params.fps)

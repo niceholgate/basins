@@ -6,13 +6,13 @@ import sympy as sp
 import numba as nb
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, List
+from typing import Callable, List, Tuple
 
 
 SYMBOLS = sp.symbols('x y d')
 
 
-def get_lambdas(expressions: List[str]):
+def get_lambdas(expressions: List[str]) -> Tuple[Callable, Callable]:
     """
     # Sympy computes the partial derivatives of each equation with respect to x and y to obtain Jacobian matrix,
     # then "lambdifies" them into Python functions with position args x, y, d.
