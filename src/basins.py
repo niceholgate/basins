@@ -13,12 +13,13 @@ def produce_image_timed(solver: Solver, images_dir, colour_set, i):
     imaging.save_still(images_dir, solver, smoothing=False, blending=False, colour_set=colour_set, frame=i)
 
 # TODO:
-#  1. add a CLI
-#  2. add logging
-#  3. Consolidate input validations in one place
-#  4. Animations can pan/zoom the grid
-#  5. queue and RL the requests
-#  6. save inputs with images
+# -create a front end
+# -add a CLI
+# -add logging
+# -Consolidate input validations in one place
+# -Animations can pan/zoom the grid
+# -queue and RL the requests
+# -save inputs with images
 
 
 def create_animation(uuid: str, params: types.AnimationParameters):
@@ -45,7 +46,7 @@ def create_animation(uuid: str, params: types.AnimationParameters):
 
 def create_still(uuid: str, params: types.StillParameters):
     images_dir = utils.get_images_dir(datetime.now().strftime("%Y-%m-%d-%H-%M-%S"), uuid)
-    solver = Solver(params.f_lambda, params.j_lambda, params.y_pixels, params.x_pixels, params.deltas[0])
+    solver = Solver(params.f_lambda, params.j_lambda, params.y_pixels, params.x_pixels, 0)
 
     produce_image_timed(solver, images_dir, params.colour_set, 0)
 

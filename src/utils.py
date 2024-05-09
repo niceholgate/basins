@@ -3,6 +3,7 @@ import src.config as cfg
 import numpy.typing as npt
 import matplotlib.pyplot as plt
 import sympy as sp
+import numpy as np
 import numba as nb
 from datetime import datetime
 from pathlib import Path

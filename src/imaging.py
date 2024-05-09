@@ -21,7 +21,7 @@ def save_still(images_dir: Path, solver: Solver, smoothing: bool = True, blendin
     blending_arrays = _create_blending_arrays(solver.iterations_grid) if blending else []
 
     frame_formatted = cfg.FRAME_COUNT_PADDING.format(frame)
-    unique_solns_this_delta = solver.unique_solutions_by_delta[solver.delta]
+    unique_solns_this_delta = solver.unique_solutions
 
     if not (isinstance(colour_set, list) and len(colour_set) == unique_solns_this_delta.shape[0]):
         idx = colour_set if isinstance(colour_set, int) else 0

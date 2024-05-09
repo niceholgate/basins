@@ -57,7 +57,7 @@ class AnimationParameters(StillParameters):
     def from_request(request: AnimationRequest) -> 'AnimationParameters':
         # Terminate with error if system of equations does not include a d term
         f_sym = [parse_expr(ex) for ex in request.expressions]
-        if all([SYMBOLS[2] not in exp.free_symbols for exp in f_sym]):
+        if all([utils.SYMBOLS[2] not in exp.free_symbols for exp in f_sym]):
             print('For animations, must include at least one "d" term (delta to perturb the equation solutions)')
             sys.exit(0)
         return AnimationParameters(

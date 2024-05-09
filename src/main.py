@@ -13,22 +13,27 @@ app = FastAPI()
 async def create_still(request: types.StillRequest, response: Response, background_tasks: BackgroundTasks):
     try:
         params = types.StillParameters.from_request(request)
+        this_uuid = str(uuid.uuid4())
+        background_tasks.add_task(
+            basins.create_still,
+            this_uuid, params)
+        return {'message': 'Creating an image',
+                'id': this_uuid}
     except ValidationError as e:
         response.status_code = status.HTTP_400_BAD_REQUEST
         return {'message': 'Input errors: ' + str({error['loc'][0]: error['msg'] for error in e.errors()})}
-
-    this_uuid = str(uuid.uuid4())
-    background_tasks.add_task(
-        basins.create_still,
-        this_uuid, params)
-    return {'message': 'Creating an image',
-            'id': this_uuid}
 
 
 @app.post('/create/animation', status_code=202)
 async def create_animation(request: types.AnimationRequest, response: Response, background_tasks: BackgroundTasks):
     try:
         params = types.AnimationParameters.from_request(request)
+        this_uuid = str(uuid.uuid4())
+        background_tasks.add_task(
+            basins.create_animation,
+            this_uuid, params)
+        return {'message': 'Creating an animation',
+                'id': this_uuid}
     except ValidationError as err:
         response.status_code = status.HTTP_400_BAD_REQUEST
         return {'message': 'Input errors: ' + str({error['loc'][0]: error['msg'] for error in err.errors()})}
@@ -36,11 +41,7 @@ async def create_animation(request: types.AnimationRequest, response: Response, 
         response.status_code = status.HTTP_400_BAD_REQUEST
         return {'message': 'Input errors: ' + str(err)}
     except Exception as err:
-        print(type(err))
+        print(err)
+        return {'message': 'Input errors: ' + str(err)}
 
-    this_uuid = str(uuid.uuid4())
-    background_tasks.add_task(
-        basins.create_animation,
-        this_uuid, params)
-    return {'message': 'Creating an animation',
-            'id': this_uuid}
+
