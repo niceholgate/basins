@@ -48,17 +48,17 @@ def points_approx_equal(p1: npt.NDArray, p2: npt.NDArray) -> bool:
 
 
 
-solution_context_spec = [
-    ('f_lambda', types.List(float64)(float64, float64, float64).as_type()),
-    ('j_lambda', types.List(types.List(float64))(float64, float64, float64).as_type()),
-    ('x_coords', float64[:]),
-    ('y_coords', float64[:]),
-    ('solutions_grid', int32[:, :]),
-    ('iterations_grid', int32[:, :]),
-    ('delta', float64),
-    ('unique_solutions', float64[:, :])
-]
-@jitclass(solution_context_spec)
+# solution_context_spec = [
+#     ('f_lambda', types.List(float64)(float64, float64, float64).as_type()),
+#     ('j_lambda', types.List(types.List(float64))(float64, float64, float64).as_type()),
+#     ('x_coords', float64[:]),
+#     ('y_coords', float64[:]),
+#     ('solutions_grid', int32[:, :]),
+#     ('iterations_grid', int32[:, :]),
+#     ('delta', float64),
+#     ('unique_solutions', float64[:, :])
+# ]
+# @jitclass(solution_context_spec)
 class Solver(object):
     def __init__(self, f_lambda, j_lambda, x_pixels, y_pixels, delta):
         self.f_lambda = f_lambda
@@ -73,7 +73,61 @@ class Solver(object):
         """Find which unique solution is reached for each pixel, and how many Newton's method iterations it took."""
         for j in range(self.y_coords.shape[0]):
             for i in range(self.x_coords.shape[0]):
-                self._set_pixel_values(j, i)
+                self._set_pixel_values_if_unset(j, i)
+
+    def solve_grid_quadtrees(self) -> None:
+        """Find which unique solution is reached for each pixel, and how many Newton's method iterations it took."""
+
+        # Create the top QuadTree that encompasses the entire grid
+        top_qt = QuadTree((0, self.x_coords.shape[0]-1), (0, self.y_coords.shape[0]-1), None)
+        qt = None
+
+        # Depth-First Search through nested QuadTrees until every pixel has been filled in on the grids
+        while True:
+            if qt is None:
+                qt = top_qt
+
+            # Iterate around the boundary of the QuadTree calculating the solution, and note if they are all identical
+            last_boundary_soln = None
+            unique_boundary_soln = True
+            for i, j in qt.boundary_coordinates_generator():
+                self._set_pixel_values_if_unset(j, i)
+                if unique_boundary_soln:
+                    if last_boundary_soln:
+                        unique_boundary_soln = self.solutions_grid[j, i] == last_boundary_soln
+                    last_boundary_soln = self.solutions_grid[j, i]
+
+            # If they are all identical around the boundary, check some random interior points to infer if
+            # the entire region encompassed by the QuadTree is uniform...
+            if unique_boundary_soln:
+                unique_interior_soln = True
+                n_interior_pixels = max((qt.x_lims[1] - qt.x_lims[0] - 1), 0) *\
+                                    max((qt.y_lims[1] - qt.y_lims[0] - 1), 0)
+                pixels_checked = 0
+                #TODO: if there are fewer than X pixels, explicitly check all of the interior pixels instead of random ones
+                while pixels_checked < 20 and pixels_checked < n_interior_pixels:
+                    rand_i, rand_j = qt.random_interior_coordinates()
+                    self._set_pixel_values_if_unset(rand_j, rand_i)
+                    unique_interior_soln = self.solutions_grid[rand_j, rand_i] == last_boundary_soln
+                    if not unique_interior_soln:
+                        break
+                    pixels_checked += 1
+
+                # ... and if so, then fill the whole QuadTree area with that solution, and mark it as terminal
+                # (this will cause the QuadTree to have no children, so its next DFS node is its parent).
+                if unique_interior_soln:
+                    self.solutions_grid[qt.y_lims[0]:qt.y_lims[1] + 1, qt.x_lims[0]:qt.x_lims[1] + 1] = last_boundary_soln
+                    iters = self.iterations_grid[qt.y_lims[0]:qt.y_lims[1] + 1, qt.x_lims[0]:qt.x_lims[1] + 1]
+                    known_iters = iters[iters != 0]
+                    self.iterations_grid[qt.y_lims[0]:qt.y_lims[1] + 1, qt.x_lims[0]:qt.x_lims[1] + 1] = int(known_iters.mean())
+                    qt.terminal = True
+
+            # Set the next QuadTree on which to perform calculations.
+            qt = qt.get_next_node_dfs()
+
+            # Once the DFS ends, then we must have finished the whole grid.
+            if qt is None:
+                break
 
     def _find_unique_solutions(self) -> Optional[npt.NDArray]:
         """Do a randomised search to find unique solutions, stopping early if new unique solutions stop being found."""
@@ -147,7 +201,8 @@ class Solver(object):
                 break
         return match
 
-    def _set_pixel_values(self, j: int, i: int):
+    def _set_pixel_values_if_unset(self, j: int, i: int):
+        # Set the values for this pixel if it hasn't been attempted yet (-1)
         if self.solutions_grid[j, i] == -1:
             solution_pixel, iterations_pixel = newton_solve(self.f_lambda, self.j_lambda, np.array([self.x_coords[i], self.y_coords[j]]), self.delta)
             self.iterations_grid[j, i] = iterations_pixel
@@ -158,43 +213,8 @@ class Solver(object):
                 else:
                     self.solutions_grid[j, i] = 0
                     print(f'WARNING: Image will ignore a novel solution found on the grid: {solution_pixel}')
+            else:
+                self.solutions_grid[j, i] = 0
+                print(f'WARNING: Maximum iterations were exceeded for a pixel')
 
-
-#
-# @nb.njit(target_backend=cfg.NUMBA_TARGET)
-# def solve_grid_quadtrees(self) -> None:
-#     """Find which unique solution is reached for each pixel, and how many Newton's method iterations it took."""
-#
-#     top_qt = QuadTree((0, x_coords.shape[0]), (0, y_coords.shape[0]), None)
-#
-#     # Iterate around the boundary of the current QuadTree calculating the solution, and note if they are all identical
-#     qt = top_qt
-#     last_boundary_soln = None
-#     unique_boundary_soln = True
-#     for i, j in qt.boundary_coordinates_generator():
-#         newton_solve_caching(_f_lambda, _j_lambda, np.array([x_coords[i], y_coords[j]]), delta,
-#                                                 solutions_grid, iterations_grid, i, j)
-#         set_pixel_values(j, i)
-#         if unique_boundary_soln:
-#             if last_boundary_soln:
-#                 unique_boundary_soln = solutions_grid[j, i] == last_boundary_soln
-#             last_boundary_soln = solutions_grid[j, i]
-#
-#     # If they are all identical around the boundary, check some random interior points.
-#     # If those are all the same too, then fill the whole QuadTree area with that solution.
-#     if unique_boundary_soln:
-#         n_interior_pixels = max((qt.x_lims[1]-qt.x_lims[0]-1), 0)*max((qt.y_lims[1]-qt.y_lims[0]-1), 0)
-#         pixels_checked = 0
-#         while pixels_checked < 20 and pixels_checked < n_interior_pixels/2:
-#             rand_i, rand_j = qt.random_interior_coordinates()
-#             newton_solve_caching(_f_lambda, _j_lambda, np.array([x_coords[rand_i], y_coords[rand_j]]), delta,
-#                                                     solutions_grid, iterations_grid, rand_i, rand_j)
-#             set_pixel_values(rand_j, rand_i)
-#             unique_boundary_soln = solutions_grid[rand_j, rand_i] == last_boundary_soln
-#             if not unique_boundary_soln:
-#                 break
-#
-#         if unique_boundary_soln:
-#             solutions_grid[qt.y_lims[0]:qt.y_lims[1] + 1, qt.x_lims[0]:qt.x_lims[1] + 1] = last_boundary_soln
-#             qt.terminal = True
 

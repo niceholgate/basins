@@ -48,7 +48,9 @@ class QuadTree:
         for child in self.get_children():
             yield child
         while True:
-            yield self.parent
+            if self.parent is None:
+                yield None
+            yield self.parent.get_next_node_dfs()
 
     def get_children(self):
         self._subdivide()

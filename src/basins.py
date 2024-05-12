@@ -9,7 +9,7 @@ from datetime import datetime
 
 @utils.timed
 def produce_image_timed(solver: Solver, images_dir, colour_set, i):
-    solver.solve_grid()
+    solver.solve_grid_quadtrees()
     imaging.save_still(images_dir, solver, smoothing=False, blending=False, colour_set=colour_set, frame=i)
 
 # TODO:

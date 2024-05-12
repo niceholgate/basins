@@ -2,10 +2,21 @@ import src.utils as utils
 import src.solver as solver
 
 import numpy as np
+import pytest
+
+from datetime import datetime
+
+
+@pytest.fixture(scope='module')
+def solve_times():
+    solve_times = {}
+    yield solve_times
+
 
 
 TEST_EXPRESSIONS = ['y**2+2*x*y+2*x**2-4-0.5*sin(15*(x+d))', 'y-10*x**2+3+d']
 LAMBDA_F, LAMBDA_J = utils.get_lambdas(TEST_EXPRESSIONS)
+SOLVE_GRID_TIME = None
 
 # if cfg.SHOW_UNIQUE_SOLUTIONS_AND_EXIT:
 #     utils.plot_unique_solutions(unique_solns_arr)
@@ -26,10 +37,24 @@ def test_newton_solve():
     assert iters == 4
 
 
-def test_solve_grid():
-    sut = solver.Solver(LAMBDA_F, LAMBDA_J, 2, 3, 1)
-    sut.solve_grid()
-    assert sut.unique_solutions.shape == (4, 2)
-    assert (sut.solutions_grid == np.array([[2, 3], [2, 4], [1, 4]])).all()
-    assert (sut.iterations_grid == np.array([[7, 7], [7, 6], [7, 7]])).all()
+def test_solve_grid_and_solve_grid_quadtrees(solve_times):
+    sut = solver.Solver(LAMBDA_F, LAMBDA_J, 15, 18, 1.0)
 
+    assert sut.unique_solutions.shape == (4, 2)
+
+    start = datetime.now()
+    sut.solve_grid()
+    solve_times['solve_grid'] = (datetime.now() - start).total_seconds()
+
+    assert sut.solutions_grid.sum() == 708
+    assert sut.iterations_grid.sum() == 1808
+
+    sut = solver.Solver(LAMBDA_F, LAMBDA_J, 15, 18, 1.0)
+
+    assert sut.unique_solutions.shape == (4, 2)
+
+    start = datetime.now()
+    sut.solve_grid_quadtrees()
+    solve_times['solve_grid_quadtrees'] = (datetime.now() - start).total_seconds()
+
+    assert sut.solutions_grid.sum() == 708
