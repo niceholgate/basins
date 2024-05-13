@@ -52,23 +52,39 @@ def test_random_interior_coordinate():
         assert 0 < random_coordinates[1] < 4
 
 
-def test_get_next_node_dfs():
-    parent = QuadTree((0, 3), (0, 4), None)
-    sut = QuadTree((0, 3), (0, 4), parent)
-    children = sut.get_children()
+def test_get_next_node_dfs_no_early_termination():
+    # 4x4 grid should create 1+4+16=21 QuadTrees
+    top_qt = QuadTree((0, 3), (0, 3), None)
+    qt_dict = {top_qt.id: top_qt}
 
-    for i in range(len(children)):
-        next_node_dfs = sut.get_next_node_dfs()
-        assert next_node_dfs == children[i]
-    for _ in range(3):
-        next_node_dfs = sut.get_next_node_dfs()
-        assert next_node_dfs == parent
+    next_node_dfs = top_qt.get_next_node_dfs(qt_dict)
+    while next_node_dfs:
+        next_node_dfs = qt_dict[next_node_dfs].get_next_node_dfs(qt_dict)
+
+    assert len(qt_dict) == 21
+
+
+def test_get_next_node_dfs_one_quadrant_early_termination():
+    # 4x4 grid with one quadrant terminal should create 1+4+12=17 QuadTrees
+    top_qt = QuadTree((0, 3), (0, 3), None)
+    qt_dict = {top_qt.id: top_qt}
+
+    next_node_dfs = top_qt.get_next_node_dfs(qt_dict)
+    qt_dict[top_qt.get_children(qt_dict)[-1]].terminal = True
+    while next_node_dfs:
+        next_node_dfs = qt_dict[next_node_dfs].get_next_node_dfs(qt_dict)
+
+    assert len(qt_dict) == 17
 
 
 def test_get_children_big_1():
     sut = QuadTree((0, 2), (0, 3), None)
-    assert sut.get_children() == [QuadTree((0, 1), (0, 1), sut), QuadTree((2, 2), (0, 1), sut),
-                                  QuadTree((0, 1), (2, 3), sut), QuadTree((2, 2), (2, 3), sut)]
+    qt_dict = {sut.id: sut}
+
+    expected_children = [QuadTree((0, 1), (0, 1), sut.id), QuadTree((2, 2), (0, 1), sut.id),
+                         QuadTree((0, 1), (2, 3), sut.id), QuadTree((2, 2), (2, 3), sut.id)]
+    actual_children = [qt_dict.get(child_id) for child_id in sut.get_children(qt_dict)]
+    assert expected_children == actual_children
 
 
 def test_get_children_big_2():

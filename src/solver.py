@@ -1,13 +1,11 @@
 import src.config as cfg
-import src.utils as utils
 from src.quad_tree import QuadTree
 
 import numpy as np
 import numpy.typing as npt
 import numba as nb
-from numba.experimental import jitclass          # import the decorator
-from numba import int32, float64, types    # import the types
-import sys
+from numba.experimental import jitclass
+from numba import int32, float64, types
 from typing import Tuple, Callable, List, Optional
 
 nb.config.DISABLE_JIT = cfg.DISABLE_JIT
@@ -32,33 +30,22 @@ def newton_solve(f_lam: Callable, j_lam: Callable, starting_guess: npt.NDArray, 
     return current_guess, n_iters
 
 
-# @nb.njit(target_backend=cfg.NUMBA_TARGET)
-# def newton_solve_caching(solutions_grid: npt.NDArray, iterations_grid: npt.NDArray, f_lam: Callable, j_lam: Callable, starting_guess: npt.NDArray, d: float,
-#                          i: int, j: int) -> Tuple[npt.NDArray, int]:
-#     if solutions_grid[j, i] == 0:
-#         soln, iters = newton_solve(f_lam, j_lam, starting_guess, d)
-#         solutions_grid[j, i] = soln
-#         iterations_grid[j, i] = iters
-#     return solutions_grid[j, i], iterations_grid[j, i]
-
-
 @nb.njit(target_backend=cfg.NUMBA_TARGET)
 def points_approx_equal(p1: npt.NDArray, p2: npt.NDArray) -> bool:
     return bool(np.linalg.norm(p1 - p2) < 2 * cfg.EPSILON)
 
 
-
-# solution_context_spec = [
-#     ('f_lambda', types.List(float64)(float64, float64, float64).as_type()),
-#     ('j_lambda', types.List(types.List(float64))(float64, float64, float64).as_type()),
-#     ('x_coords', float64[:]),
-#     ('y_coords', float64[:]),
-#     ('solutions_grid', int32[:, :]),
-#     ('iterations_grid', int32[:, :]),
-#     ('delta', float64),
-#     ('unique_solutions', float64[:, :])
-# ]
-# @jitclass(solution_context_spec)
+solution_context_spec = [
+    ('f_lambda', types.List(float64)(float64, float64, float64).as_type()),
+    ('j_lambda', types.List(types.List(float64))(float64, float64, float64).as_type()),
+    ('x_coords', float64[:]),
+    ('y_coords', float64[:]),
+    ('solutions_grid', int32[:, :]),
+    ('iterations_grid', int32[:, :]),
+    ('delta', float64),
+    ('unique_solutions', float64[:, :])
+]
+@jitclass(solution_context_spec)
 class Solver(object):
     def __init__(self, f_lambda, j_lambda, x_pixels, y_pixels, delta):
         self.f_lambda = f_lambda
@@ -80,6 +67,7 @@ class Solver(object):
 
         # Create the top QuadTree that encompasses the entire grid
         top_qt = QuadTree((0, self.x_coords.shape[0]-1), (0, self.y_coords.shape[0]-1), None)
+        qt_dict = {top_qt.id: top_qt}
         qt = None
 
         # Depth-First Search through nested QuadTrees until every pixel has been filled in on the grids
@@ -123,7 +111,7 @@ class Solver(object):
                     qt.terminal = True
 
             # Set the next QuadTree on which to perform calculations.
-            qt = qt.get_next_node_dfs()
+            qt = qt_dict[qt.get_next_node_dfs(qt_dict)]
 
             # Once the DFS ends, then we must have finished the whole grid.
             if qt is None:

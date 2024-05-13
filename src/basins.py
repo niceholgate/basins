@@ -15,11 +15,10 @@ def produce_image_timed(solver: Solver, images_dir, colour_set, i):
 # TODO:
 # -create a front end
 # -add a CLI
-# -add logging
+# -add logging (including saving the inputs and performance metrics with the images)
 # -Consolidate input validations in one place
 # -Animations can pan/zoom the grid
 # -queue and RL the requests
-# -save inputs with images
 
 
 def create_animation(uuid: str, params: types.AnimationParameters):
