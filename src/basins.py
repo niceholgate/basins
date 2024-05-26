@@ -9,11 +9,12 @@ from datetime import datetime
 
 @utils.timed
 def produce_image_timed(solver: Solver, images_dir, colour_set, i):
-    solver.solve_grid_quadtrees()
+    solver.solve_grid()
     imaging.save_still(images_dir, solver, smoothing=False, blending=False, colour_set=colour_set, frame=i)
 
 # TODO:
 # -create a front end
+# -remote debugging?
 # -add a CLI
 # -add logging (including saving the inputs and performance metrics with the images)
 # -Consolidate input validations in one place
@@ -22,7 +23,8 @@ def produce_image_timed(solver: Solver, images_dir, colour_set, i):
 
 
 def create_animation(uuid: str, params: types.AnimationParameters):
-    images_dir = utils.get_images_dir(datetime.now().strftime("%Y-%m-%d-%H-%M-%S"), uuid)
+    images_dir = utils.get_images_dir(uuid)
+    utils.mkdir_if_nonexistent(images_dir)
     solvers = [Solver(params.f_lambda, params.j_lambda, params.y_pixels, params.x_pixels, params.deltas[0])]
     expected_number_of_solns = solvers[0].unique_solutions.shape[0]
 
@@ -44,7 +46,8 @@ def create_animation(uuid: str, params: types.AnimationParameters):
 
 
 def create_still(uuid: str, params: types.StillParameters):
-    images_dir = utils.get_images_dir(datetime.now().strftime("%Y-%m-%d-%H-%M-%S"), uuid)
+    images_dir = utils.get_images_dir(uuid)
+    utils.mkdir_if_nonexistent(images_dir)
     solver = Solver(params.f_lambda, params.j_lambda, params.y_pixels, params.x_pixels, 0)
 
     produce_image_timed(solver, images_dir, params.colour_set, 0)

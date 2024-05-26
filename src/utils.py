@@ -25,11 +25,19 @@ def get_lambdas(expressions: List[str]) -> Tuple[Callable, Callable]:
     return f_lambda, j_lambda
 
 
-def get_images_dir(start_time: str, uuid: str) -> Path:
-    images_dir = Path().cwd() / f'images/{start_time}_{uuid}'
-    if not images_dir.exists():
-        images_dir.mkdir(parents=True)
+def get_images_dir(uuid: str) -> Path:
+    images_dir = Path().cwd() / f'images/{uuid}'
     return images_dir
+
+
+def mkdir_if_nonexistent(path: Path) -> None:
+    if not path.exists():
+        path.mkdir(parents=True)
+
+
+def get_frame_filename(frame_number: int, file_extention: str) -> str:
+    frame_number_formatted = cfg.FRAME_COUNT_PADDING.format(frame_number)
+    return f'frame-{frame_number_formatted}.{file_extention}'
 
 
 def timed(func: Callable) -> Callable:
