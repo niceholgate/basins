@@ -2,9 +2,9 @@ from src.solver import Solver
 import src.imaging as imaging
 import src.types as types
 import src.utils as utils
+import src.config as cfg
 
 from sys import exit
-from datetime import datetime
 
 
 @utils.timed
@@ -42,7 +42,9 @@ def create_animation(uuid: str, params: types.AnimationParameters):
         print(f'Now solving the grid for frame {i + 1} of {len(solvers)} (delta={solver.delta})...')
         total_duration += produce_image_timed(solver, images_dir, params.colour_set, i)
         utils.print_time_remaining_estimate(i, len(params.deltas), total_duration)
-    imaging.stills_to_video(images_dir, params.fps)
+    if cfg.SAVE_PNG_FRAMES:
+        imaging.png_to_mp4(images_dir, params.fps)
+    imaging.rgb_to_mp4(images_dir, params.fps)
 
 
 def create_still(uuid: str, params: types.StillParameters):

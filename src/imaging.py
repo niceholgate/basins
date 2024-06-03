@@ -4,6 +4,7 @@ from src.solver import Solver
 
 import ffmpeg
 import os
+import io
 import matplotlib
 import numpy as np
 import numpy.typing as npt
@@ -38,11 +39,11 @@ def save_still(images_dir: Path, solver: Solver, smoothing: bool = True, blendin
     blended_pixel_grid = _blend_grid(pixel_grid, blending_arrays, 0) if blending else pixel_grid
     np.savetxt(images_dir / utils.get_frame_filename(frame, 'txt'), blended_pixel_grid.reshape([blended_pixel_grid.shape[0],
                blended_pixel_grid.shape[1]*blended_pixel_grid.shape[2]]), fmt='%u')
-    print('saving image file ' + str(images_dir / utils.get_frame_filename(frame, 'png')))
-    Image.fromarray(blended_pixel_grid, 'RGB').save(images_dir / utils.get_frame_filename(frame, 'png'))
+    if cfg.SAVE_PNG_FRAMES:
+        Image.fromarray(blended_pixel_grid, 'RGB').save(images_dir / utils.get_frame_filename(frame, 'png'))
 
 
-def stills_to_video(images_dir: Path, fps: int):
+def png_to_mp4(images_dir: Path, fps: int):
     """Use ffmpeg (via ffmpeg-python package) to assemble the image frames into a video."""
     images = [img for img in os.listdir(images_dir) if img.endswith(".png")]
     image_name_root = images[0].split('-')[0]
@@ -51,6 +52,43 @@ def stills_to_video(images_dir: Path, fps: int):
         .output(str(images_dir/f'video{fps}.mp4'))\
         .global_args('-loglevel', 'error')\
         .run()
+
+
+def rgb_to_mp4(images_dir: Path, fps: int):
+    images = [img for img in os.listdir(images_dir) if img.endswith(".txt")]
+    rgb_frame_data_path = images_dir / images[0]
+    first_frame = load_rgb_file(rgb_frame_data_path, 3)
+    height, width, channels = first_frame.shape
+
+    process = (
+        ffmpeg
+        .input('pipe:', format='rawvideo', pix_fmt='rgb24', s='{}x{}'.format(width, height), r=fps)
+        .output(str(images_dir/f'video-rgb{fps}.mp4'))
+        .overwrite_output()
+        .run_async(pipe_stdin=True, overwrite_output=True, pipe_stderr=True)
+    )
+    for i, image in enumerate(images):
+        try:
+            rgb_frame_data_path = images_dir / image
+            frame = load_rgb_file(rgb_frame_data_path) if i > 0 else first_frame
+            process.stdin.write(
+                frame.astype(np.uint8).tobytes()
+            )
+        except Exception as e: # should probably be an exception related to process.stdin.write, then after catch RGB load exception
+            for line in io.TextIOWrapper(process.stderr, encoding="utf-8"): # I didn't know how to get the stderr from the process, but this worked for me
+                print(line) # <-- print all the lines in the processes stderr after it has errored
+            process.stdin.close()
+            process.wait()
+            return # cant run anymore so end the for loop and the function execution
+    out, err = process.communicate()
+
+
+def load_rgb_file(rgb_frame_data_path: Path, output_array_dim: int = 2) -> np.ndarray:
+    array_2d = np.genfromtxt(rgb_frame_data_path, dtype=np.int_)
+    if output_array_dim == 3:
+        height, width_x_channels = array_2d.shape
+        return array_2d.reshape([height, int(width_x_channels/3), 3])
+    return array_2d
 
 
 @nb.njit(target_backend=cfg.NUMBA_TARGET)
