@@ -33,7 +33,7 @@ const ImageRenderer: React.FC<ImageRendererProps> = ({ rgbArray }) => {
 
     const imageUrl = generateImageDataUrl(rgbArray);
 
-    return <img src={imageUrl} alt='RGB data rendered' width={300}/>;
+    return <img src={imageUrl} alt='RGB data rendered' width={500}/>;
 };
 
 export default ImageRenderer;

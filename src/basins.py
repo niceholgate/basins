@@ -1,10 +1,12 @@
 from src.solver import Solver
 import src.imaging as imaging
-import src.types as types
+import src.request_types as types
 import src.utils as utils
 import src.config as cfg
 
 from sys import exit
+import logging
+logger = logging.getLogger(__name__)
 
 
 @utils.timed
@@ -23,6 +25,9 @@ def produce_image_timed(solver: Solver, images_dir, colour_set, i):
 
 
 def create_animation(uuid: str, params: types.AnimationParameters):
+    utils.logger_setup(logger, uuid, 'animation')
+    logger.debug(params.model_dump_json(exclude={'f_lambda', 'j_lambda'}))
+
     images_dir = utils.get_images_dir(uuid)
     utils.mkdir_if_nonexistent(images_dir)
     solvers = [Solver(params.f_lambda, params.j_lambda, params.y_pixels, params.x_pixels, params.deltas[0])]
@@ -48,6 +53,9 @@ def create_animation(uuid: str, params: types.AnimationParameters):
 
 
 def create_still(uuid: str, params: types.StillParameters):
+    utils.logger_setup(logger, uuid, 'still')
+    # logger.debug(params.model_dump_json(exclude={'f_lambda', 'j_lambda'}))
+
     images_dir = utils.get_images_dir(uuid)
     utils.mkdir_if_nonexistent(images_dir)
     solver = Solver(params.f_lambda, params.j_lambda, params.y_pixels, params.x_pixels, 0)

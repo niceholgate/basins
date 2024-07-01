@@ -7,6 +7,6 @@ Pillow==10.2.0
 ffmpeg-python
 mypy
 fastapi~=0.110.0
-uvicorn[standard]
+uvicorn[standard]~=0.27.1
 pydantic~=2.6.3
 pytest~=8.1.1

@@ -1,6 +1,8 @@
 import src.config as cfg
 import src.utils as utils
+from pydantic import ValidationError
 from src.solver import Solver
+from src.request_types import StillRequest, AnimationRequest
 
 import ffmpeg
 import os
@@ -10,7 +12,7 @@ import numpy as np
 import numpy.typing as npt
 import numba as nb
 from PIL import Image
-from typing import List, Union, Dict
+from typing import List, Union, Dict, Optional
 from pathlib import Path
 
 nb.config.DISABLE_JIT = cfg.DISABLE_JIT
@@ -70,7 +72,7 @@ def rgb_to_mp4(images_dir: Path, fps: int):
     for i, image in enumerate(images):
         try:
             rgb_frame_data_path = images_dir / image
-            frame = load_rgb_file(rgb_frame_data_path) if i > 0 else first_frame
+            frame = load_rgb_file(rgb_frame_data_path, 3) if i > 0 else first_frame
             process.stdin.write(
                 frame.astype(np.uint8).tobytes()
             )
@@ -89,6 +91,26 @@ def load_rgb_file(rgb_frame_data_path: Path, output_array_dim: int = 2) -> np.nd
         height, width_x_channels = array_2d.shape
         return array_2d.reshape([height, int(width_x_channels/3), 3])
     return array_2d
+
+
+def load_run_data(uuid: str) -> Optional[Dict]:
+    directory = utils.get_images_dir(uuid)
+    logs_files = list(directory.glob(f'*.log'))
+    if logs_files:
+        file_path = logs_files[0]
+        with open(file_path, 'r') as log:
+            first_line = log.readline().strip('\n')
+            json_str = first_line.split(' - ')[1]
+
+            try:
+                if file_path.name.startswith('animation'):
+                    return AnimationRequest.model_validate_json(json_str).model_dump()
+                else:
+                    return StillRequest.model_validate_json(json_str).model_dump()
+            except ValidationError as e:
+                return {'message': 'error parsing!'}
+    return None
+
 
 
 @nb.njit(target_backend=cfg.NUMBA_TARGET)

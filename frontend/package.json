@@ -48,6 +48,7 @@
     ]
   },
   "devDependencies": {
-    "@types/video-react": "^0.15.8"
+    "@types/video-react": "^0.15.8",
+    "@babel/plugin-proposal-private-property-in-object": ""
   }
 }
