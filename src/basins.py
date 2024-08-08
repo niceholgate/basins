@@ -15,13 +15,16 @@ def produce_image_timed(solver: Solver, images_dir, colour_set, i):
     imaging.save_still(images_dir, solver, smoothing=False, blending=False, colour_set=colour_set, frame=i)
 
 # TODO:
-# -create a front end
-# -remote debugging?
-# -add a CLI
-# -add logging (including saving the inputs and performance metrics with the images)
+# -improve UI layout + add tabs (sidebar) + refactoring
+# -loading bars with server-sent events
+###https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events?fbclid=IwZXh0bgNhZW0CMTAAAR0Jc8W85IGtv2YlQdb2PT3QU8-d7vmNGV8_vW6rgQxOKPOdzwto9SDveRI_aem_wJvZf1ZyYehwhxYwiRISCg
+###https://medium.com/codex/implementation-of-server-sent-events-and-eventsource-live-progress-indicator-using-react-and-723596f35225
+# -download video once all frames computed
+# -improve logging
 # -Consolidate input validations in one place
 # -Animations can pan/zoom the grid
-# -queue and RL the requests
+# -queue and RL requests
+# -setup lambda, APIGateway, static app hosting, LocalStack
 
 
 def create_animation(uuid: str, params: types.AnimationParameters):

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import ImageRenderer from './components/ImageRenderer';
 import SliderStepInput from './components/SliderStepInput';
+import { fetchPost } from "./functions/Controller";
 import './App.css';
 import {
     ChakraProvider,
@@ -16,18 +17,25 @@ import {
 
 type Cache = {
     [key: number]: number[][]
-}
+};
+
+type StillRequest = {
+    color_set: number,
+    x_pixels: number,
+    y_pixels: number,
+    expressions: string[]
+};
+
+type AnimationRequest = StillRequest & {
+    delta: number,
+    frames: number,
+    fps: number
+};
 
 function App() {
-    const generateArray = async () => {
-        await fetch(`http://${hostname}:8000/create/still`, {
-            method: 'POST',
-            headers: {
-              'Accept': 'application/json, text/plain, */*',
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({color_set: colourScheme, x_pixels: 500, y_pixels: 300, expressions: [exp1, exp2]})
-          })
+
+    const generateStill = async (baseUrl: string, request: StillRequest) => {
+        await fetchPost(`${baseUrl}/create/still`, JSON.stringify(request))
             .then((res) => {
                 if (res.status!==202) {
                     throw new Error(`Could not generate image`)
@@ -42,11 +50,11 @@ function App() {
             })
     };
 
-    const loadArray = async (newFrame: number) => {
-        return await fetch(`http://${hostname}:8000/load/${uuid}/rgb_frame/${newFrame-1}`)
+    const loadArray = async (baseUrl: string, uuid: string, frame: number): Promise<number[][]> => {
+        return await fetch(`${baseUrl}/load/${uuid}/rgb_frame/${frame-1}`)
             .then((res) => {
                 if (!res.ok) {
-                    throw new Error(`Could not retrieve frame=${newFrame} for job with uuid=${uuid}`)
+                    throw new Error(`Could not retrieve frame=${frame} for job with uuid=${uuid}`)
                 }
                 return res.json()
             })
@@ -56,8 +64,8 @@ function App() {
             })
     };
 
-    const loadRunData = async () => {
-        return await fetch(`http://${hostname}:8000/load/${uuid}/run_data`)
+    const loadRunData = async (baseUrl: string, uuid: string): Promise<StillRequest | AnimationRequest> => {
+        return await fetch(`${baseUrl}/load/${uuid}/run_data`)
             .then((res) => {
                 if (!res.ok) {
                     throw new Error(`Could not retrieve run data for job with uuid=${uuid}`)
@@ -86,17 +94,23 @@ function App() {
 
     const [message, setMessage] = useState('');
 
-    const hostname = window.location.hostname === 'localhost' ? 'localhost' : '192.168.0.106';
+    const baseUrl = window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'http://192.168.0.106:8000';
 
     const handleGenerateClick = async () => {
-        generateArray();
+        const request: StillRequest = {
+            color_set: colourScheme,
+            x_pixels: 500,
+            y_pixels: 500,
+            expressions: [exp1, exp2]
+        };
+        generateStill(baseUrl, request);
     }
 
     const handleLoadClick = async () => {
-        const data = await loadRunData();
-        if (data['frames']) {
-            setMaxFrame(data['frames']);
-        }
+        const data = await loadRunData(baseUrl, uuid);
+        setFrameCache({});
+        setMaxFrame('frames' in data ? data['frames'] : 1);
+        setFrame(1);
     }
 
     function checkArray(rgbArray: number[][]) {
@@ -117,7 +131,7 @@ function App() {
                     console.debug(`Using cached data for frame: ${frame}`);
                 } else {
                     console.debug(`Fetching new data for frame: ${frame}`);
-                    const fetchedArray = await loadArray(frame);
+                    const fetchedArray = await loadArray(baseUrl, uuid, frame);
                     setFrameCache((prevCache) => ({...prevCache, [frame]: fetchedArray}));
                 }
             }
@@ -170,7 +184,7 @@ function App() {
                             setUuid(e.target.value)
                         }} placeholder='Enter an ID'/>
                         <Button type='submit' colorScheme='green' onClick={handleLoadClick}>Load</Button>
-                        <SliderStepInput minValue={1} maxValue={maxFrame} onChange={(v: number) => {
+                        <SliderStepInput frame={frame} setFrame={setFrame} minValue={1} maxValue={maxFrame} onChange={(v: number) => {
                             setFrame(v);
                         }}/>
                     </Flex>
