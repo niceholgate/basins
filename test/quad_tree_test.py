@@ -1,5 +1,6 @@
 # import pytest
 from src.quad_tree import QuadTree
+from typing import List
 
 
 # def _check_raises(error_type, error_message, func, *args):
@@ -79,36 +80,44 @@ def test_get_next_node_dfs_one_quadrant_early_termination():
 
 def test_get_children_big_1():
     sut = QuadTree((0, 2), (0, 3), None)
-    qt_dict = {sut.id: sut}
-
     expected_children = [QuadTree((0, 1), (0, 1), sut.id), QuadTree((2, 2), (0, 1), sut.id),
                          QuadTree((0, 1), (2, 3), sut.id), QuadTree((2, 2), (2, 3), sut.id)]
-    actual_children = [qt_dict.get(child_id) for child_id in sut.get_children(qt_dict)]
-    assert expected_children == actual_children
+    compare_expected_and_actual_children(sut, expected_children)
 
 
 def test_get_children_big_2():
     sut = QuadTree((0, 3), (0, 2), None)
-    assert sut.get_children() == [QuadTree((0, 1), (0, 1), sut), QuadTree((2, 3), (0, 1), sut),
-                                  QuadTree((0, 1), (2, 2), sut), QuadTree((2, 3), (2, 2), sut)]
+    expected_children = [QuadTree((0, 1), (0, 1), sut.id), QuadTree((2, 3), (0, 1), sut.id),
+                         QuadTree((0, 1), (2, 2), sut.id), QuadTree((2, 3), (2, 2), sut.id)]
+    compare_expected_and_actual_children(sut, expected_children)
 
 
 def test_get_children_2x2():
     sut = QuadTree((0, 1), (0, 1), None)
-    assert sut.get_children() == [QuadTree((0, 0), (0, 0), sut), QuadTree((1, 1), (0, 0), sut),
-                                  QuadTree((0, 0), (1, 1), sut), QuadTree((1, 1), (1, 1), sut)]
+    expected_children = [QuadTree((0, 0), (0, 0), sut.id), QuadTree((1, 1), (0, 0), sut.id),
+                         QuadTree((0, 0), (1, 1), sut.id), QuadTree((1, 1), (1, 1), sut.id)]
+    compare_expected_and_actual_children(sut, expected_children)
 
 
 def test_get_children_1x2():
     sut = QuadTree((0, 0), (0, 1), None)
-    assert sut.get_children() == [QuadTree((0, 0), (0, 0), sut), QuadTree((0, 0), (1, 1), sut)]
+    expected_children = [QuadTree((0, 0), (0, 0), sut.id), QuadTree((0, 0), (1, 1), sut.id)]
+    compare_expected_and_actual_children(sut, expected_children)
 
 
 def test_get_children_2x1():
     sut = QuadTree((0, 1), (0, 0), None)
-    assert sut.get_children() == [QuadTree((0, 0), (0, 0), sut), QuadTree((1, 1), (0, 0), sut)]
+    expected_children = [QuadTree((0, 0), (0, 0), sut.id), QuadTree((1, 1), (0, 0), sut.id)]
+    compare_expected_and_actual_children(sut, expected_children)
 
 
 def test_get_children_1x1():
     sut = QuadTree((0, 0), (0, 0), None)
-    assert sut.get_children() == []
+    expected_children = []
+    compare_expected_and_actual_children(sut, expected_children)
+
+
+def compare_expected_and_actual_children(sut: QuadTree, expected_children: List[QuadTree]):
+    qt_dict = {sut.id: sut}
+    actual_children = [qt_dict.get(child_id) for child_id in sut.get_children(qt_dict)]
+    assert expected_children == actual_children

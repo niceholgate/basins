@@ -111,11 +111,13 @@ class Solver(object):
                     qt.terminal = True
 
             # Set the next QuadTree on which to perform calculations.
-            qt = qt_dict[qt.get_next_node_dfs(qt_dict)]
+            next_key = qt.get_next_node_dfs(qt_dict)
 
             # Once the DFS ends, then we must have finished the whole grid.
-            if qt is None:
+            if next_key is None:
                 break
+
+            qt = qt_dict[next_key]
 
     def _find_unique_solutions(self) -> Optional[npt.NDArray]:
         """Do a randomised search to find unique solutions, stopping early if new unique solutions stop being found."""
