@@ -24,6 +24,7 @@ class StillParameters(BaseModel):
     colour_set: int
     y_pixels: int = Field(gt=0)
     x_pixels: int = Field(gt=0)
+    expressions: List[str] # remove this?
     # Check successful parsing
     # Check only contains known symbols
     f_lambda: Callable
@@ -38,6 +39,7 @@ class StillParameters(BaseModel):
             colour_set=request.colour_set,
             x_pixels=request.x_pixels,
             y_pixels=request.y_pixels,
+            expressions=request.expressions,
             f_lambda=f_lambda,
             j_lambda=j_lambda)
 
@@ -62,7 +64,7 @@ class AnimationParameters(StillParameters):
             sys.exit(0)
         return AnimationParameters(
             **StillParameters.from_request(request).model_dump(),
-            deltas=np.linspace(0, request.delta, request.frames),
+            deltas=np.linspace(0, request.delta, request.frames).tolist(),
             fps=request.fps)
 
 

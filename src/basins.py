@@ -1,28 +1,38 @@
 from src.solver import Solver
 import src.imaging as imaging
-import src.types as types
+import src.request_types as types
 import src.utils as utils
+import src.config as cfg
 
 from sys import exit
-from datetime import datetime
+import logging
+logger = logging.getLogger(__name__)
 
 
 @utils.timed
 def produce_image_timed(solver: Solver, images_dir, colour_set, i):
-    solver.solve_grid_quadtrees()
+    solver.solve_grid()
     imaging.save_still(images_dir, solver, smoothing=False, blending=False, colour_set=colour_set, frame=i)
 
 # TODO:
-# -create a front end
-# -add a CLI
-# -add logging (including saving the inputs and performance metrics with the images)
+# -improve UI layout + add tabs (sidebar) + refactoring
+# -loading bars with server-sent events
+###https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events?fbclid=IwZXh0bgNhZW0CMTAAAR0Jc8W85IGtv2YlQdb2PT3QU8-d7vmNGV8_vW6rgQxOKPOdzwto9SDveRI_aem_wJvZf1ZyYehwhxYwiRISCg
+###https://medium.com/codex/implementation-of-server-sent-events-and-eventsource-live-progress-indicator-using-react-and-723596f35225
+# -download video once all frames computed
+# -improve logging
 # -Consolidate input validations in one place
 # -Animations can pan/zoom the grid
-# -queue and RL the requests
+# -queue and RL requests
+# -setup lambda, APIGateway, static app hosting, LocalStack
 
 
 def create_animation(uuid: str, params: types.AnimationParameters):
-    images_dir = utils.get_images_dir(datetime.now().strftime("%Y-%m-%d-%H-%M-%S"), uuid)
+    utils.logger_setup(logger, uuid, 'animation')
+    logger.debug(params.model_dump_json(exclude={'f_lambda', 'j_lambda'}))
+
+    images_dir = utils.get_images_dir(uuid)
+    utils.mkdir_if_nonexistent(images_dir)
     solvers = [Solver(params.f_lambda, params.j_lambda, params.y_pixels, params.x_pixels, params.deltas[0])]
     expected_number_of_solns = solvers[0].unique_solutions.shape[0]
 
@@ -40,11 +50,17 @@ def create_animation(uuid: str, params: types.AnimationParameters):
         print(f'Now solving the grid for frame {i + 1} of {len(solvers)} (delta={solver.delta})...')
         total_duration += produce_image_timed(solver, images_dir, params.colour_set, i)
         utils.print_time_remaining_estimate(i, len(params.deltas), total_duration)
-    imaging.stills_to_video(images_dir, params.fps)
+    if cfg.SAVE_PNG_FRAMES:
+        imaging.png_to_mp4(images_dir, params.fps)
+    imaging.rgb_to_mp4(images_dir, params.fps)
 
 
 def create_still(uuid: str, params: types.StillParameters):
-    images_dir = utils.get_images_dir(datetime.now().strftime("%Y-%m-%d-%H-%M-%S"), uuid)
+    utils.logger_setup(logger, uuid, 'still')
+    # logger.debug(params.model_dump_json(exclude={'f_lambda', 'j_lambda'}))
+
+    images_dir = utils.get_images_dir(uuid)
+    utils.mkdir_if_nonexistent(images_dir)
     solver = Solver(params.f_lambda, params.j_lambda, params.y_pixels, params.x_pixels, 0)
 
     produce_image_timed(solver, images_dir, params.colour_set, 0)

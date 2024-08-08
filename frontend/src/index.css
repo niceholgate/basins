@@ -1,0 +1,48 @@
+:root {
+  --main-color: rgb(40, 249, 86);
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* background-color: gray; */
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+h1 {
+  /* color: var(--main-color); */
+  font-size: 2em;
+  border-bottom: 2px solid var(--main-color);
+  text-align: center;
+}
+
+h2 {
+  /* color: var(--main-color); */
+  font-size: 1em;
+  /* border-bottom: 1px solid var(--main-color); */
+  text-align: left;
+}
+
+/* input {
+  background-color: var(--main-color);
+  color: black;
+} */
+
+/* button, label, select {
+  background-color: var(--main-color);
+} */
+
+.flex-container {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  justify-content: space-around;
+}
