@@ -10,43 +10,43 @@ from typing import List
 
 
 def test_iterate_boundary_coordinates_big():
-    sut = QuadTree((0, 2), (0, 3), None)
+    sut = QuadTree(0, 2, 0, 3, None)
     expected_boundary_coords = [(0, 0), (1, 0), (2, 0), (2, 1), (2, 2), (2, 3), (1, 3), (0, 3), (0, 2), (0, 1)]
     assert list(sut.boundary_coordinates_generator()) == expected_boundary_coords
 
 
 def test_iterate_boundary_coordinates_2x2():
-    sut = QuadTree((0, 1), (0, 1), None)
+    sut = QuadTree(0, 1, 0, 1, None)
     expected_boundary_coords = [(0, 0), (1, 0), (1, 1), (0, 1)]
     assert list(sut.boundary_coordinates_generator()) == expected_boundary_coords
 
 
 def test_iterate_boundary_coordinates_1x2():
-    sut = QuadTree((2, 2), (2, 3), None)
+    sut = QuadTree(2, 2, 2, 3, None)
     expected_boundary_coords = [(2, 2), (2, 3)]
     assert list(sut.boundary_coordinates_generator()) == expected_boundary_coords
 
 
 def test_iterate_boundary_coordinates_1x1():
-    sut = QuadTree((2, 2), (3, 3), None)
+    sut = QuadTree(2, 2, 3, 3, None)
     expected_boundary_coords = [(2, 3)]
     assert list(sut.boundary_coordinates_generator()) == expected_boundary_coords
 
 
 def test_iterate_interior_coordinates_big():
-    sut = QuadTree((0, 3), (0, 4), None)
+    sut = QuadTree(0, 3, 0, 4, None)
     expected_interior_coords = [(1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3)]
     assert list(sut.interior_coordinates_generator()) == expected_interior_coords
 
 
 def test_iterate_interior_coordinates_2x2():
-    sut = QuadTree((0, 1), (0, 1), None)
+    sut = QuadTree(0, 1, 0, 1, None)
     expected_interior_coords = []
     assert list(sut.interior_coordinates_generator()) == expected_interior_coords
 
 
 def test_random_interior_coordinate():
-    sut = QuadTree((0, 3), (0, 4), None)
+    sut = QuadTree(0, 3, 0, 4, None)
     for _ in range(10):
         random_coordinates = sut.random_interior_coordinates()
         assert 0 < random_coordinates[0] < 3
@@ -55,7 +55,7 @@ def test_random_interior_coordinate():
 
 def test_get_next_node_dfs_no_early_termination():
     # 4x4 grid should create 1+4+16=21 QuadTrees
-    top_qt = QuadTree((0, 3), (0, 3), None)
+    top_qt = QuadTree(0, 3, 0, 3, None)
     qt_dict = {top_qt.id: top_qt}
 
     next_node_dfs = top_qt.get_next_node_dfs(qt_dict)
@@ -67,7 +67,7 @@ def test_get_next_node_dfs_no_early_termination():
 
 def test_get_next_node_dfs_one_quadrant_early_termination():
     # 4x4 grid with one quadrant terminal should create 1+4+12=17 QuadTrees
-    top_qt = QuadTree((0, 3), (0, 3), None)
+    top_qt = QuadTree(0, 3, 0, 3, None)
     qt_dict = {top_qt.id: top_qt}
 
     next_node_dfs = top_qt.get_next_node_dfs(qt_dict)
@@ -79,45 +79,46 @@ def test_get_next_node_dfs_one_quadrant_early_termination():
 
 
 def test_get_children_big_1():
-    sut = QuadTree((0, 2), (0, 3), None)
-    expected_children = [QuadTree((0, 1), (0, 1), sut.id), QuadTree((2, 2), (0, 1), sut.id),
-                         QuadTree((0, 1), (2, 3), sut.id), QuadTree((2, 2), (2, 3), sut.id)]
+    sut = QuadTree(0, 2, 0, 3, None)
+    expected_children = [QuadTree(0, 1, 0, 1, sut.id), QuadTree(2, 2, 0, 1, sut.id),
+                         QuadTree(0, 1, 2, 3, sut.id), QuadTree(2, 2, 2, 3, sut.id)]
     compare_expected_and_actual_children(sut, expected_children)
 
 
 def test_get_children_big_2():
-    sut = QuadTree((0, 3), (0, 2), None)
-    expected_children = [QuadTree((0, 1), (0, 1), sut.id), QuadTree((2, 3), (0, 1), sut.id),
-                         QuadTree((0, 1), (2, 2), sut.id), QuadTree((2, 3), (2, 2), sut.id)]
+    sut = QuadTree(0, 3, 0, 2, None)
+    expected_children = [QuadTree(0, 1, 0, 1, sut.id), QuadTree(2, 3, 0, 1, sut.id),
+                         QuadTree(0, 1, 2, 2, sut.id), QuadTree(2, 3, 2, 2, sut.id)]
     compare_expected_and_actual_children(sut, expected_children)
 
 
 def test_get_children_2x2():
-    sut = QuadTree((0, 1), (0, 1), None)
-    expected_children = [QuadTree((0, 0), (0, 0), sut.id), QuadTree((1, 1), (0, 0), sut.id),
-                         QuadTree((0, 0), (1, 1), sut.id), QuadTree((1, 1), (1, 1), sut.id)]
+    sut = QuadTree(0, 1, 0, 1, None)
+    expected_children = [QuadTree(0, 0, 0, 0, sut.id), QuadTree(1, 1, 0, 0, sut.id),
+                         QuadTree(0, 0, 1, 1, sut.id), QuadTree(1, 1, 1, 1, sut.id)]
     compare_expected_and_actual_children(sut, expected_children)
 
 
 def test_get_children_1x2():
-    sut = QuadTree((0, 0), (0, 1), None)
-    expected_children = [QuadTree((0, 0), (0, 0), sut.id), QuadTree((0, 0), (1, 1), sut.id)]
+    sut = QuadTree(0, 0, 0, 1, None)
+    expected_children = [QuadTree(0, 0, 0, 0, sut.id), QuadTree(0, 0, 1, 1, sut.id)]
     compare_expected_and_actual_children(sut, expected_children)
 
 
 def test_get_children_2x1():
-    sut = QuadTree((0, 1), (0, 0), None)
-    expected_children = [QuadTree((0, 0), (0, 0), sut.id), QuadTree((1, 1), (0, 0), sut.id)]
+    sut = QuadTree(0, 1, 0, 0, None)
+    expected_children = [QuadTree(0, 0, 0, 0, sut.id), QuadTree(1, 1, 0, 0, sut.id)]
     compare_expected_and_actual_children(sut, expected_children)
 
 
 def test_get_children_1x1():
-    sut = QuadTree((0, 0), (0, 0), None)
+    sut = QuadTree(0, 0, 0, 0, None)
     expected_children = []
     compare_expected_and_actual_children(sut, expected_children)
 
 
 def compare_expected_and_actual_children(sut: QuadTree, expected_children: List[QuadTree]):
     qt_dict = {sut.id: sut}
-    actual_children = [qt_dict.get(child_id) for child_id in sut.get_children(qt_dict)]
-    assert expected_children == actual_children
+    actual_children_ids = sut.get_children(qt_dict)
+    for i in range(actual_children_ids):
+        assert expected_children[i] == qt_dict.get(actual_children_ids[i])

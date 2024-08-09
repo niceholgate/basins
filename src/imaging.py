@@ -15,7 +15,7 @@ from PIL import Image
 from typing import List, Union, Dict, Optional
 from pathlib import Path
 
-nb.config.DISABLE_JIT = cfg.DISABLE_JIT
+nb.config.DISABLE_JIT = not cfg.ENABLE_JIT
 
 
 def save_still(images_dir: Path, solver: Solver, smoothing: bool = True, blending: bool = True, colour_set: Union[int, List[str]] = 0, frame: int = 0):

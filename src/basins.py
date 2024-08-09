@@ -11,7 +11,10 @@ logger = logging.getLogger(__name__)
 
 @utils.timed
 def produce_image_timed(solver: Solver, images_dir, colour_set, i):
-    solver.solve_grid()
+    if cfg.ENABLE_QUADTREES:
+        solver.solve_grid_quadtrees()
+    else:
+        solver.solve_grid()
     imaging.save_still(images_dir, solver, smoothing=False, blending=False, colour_set=colour_set, frame=i)
 
 # TODO:
@@ -29,7 +32,7 @@ def produce_image_timed(solver: Solver, images_dir, colour_set, i):
 
 def create_animation(uuid: str, params: types.AnimationParameters):
     utils.logger_setup(logger, uuid, 'animation')
-    logger.debug(params.model_dump_json(exclude={'f_lambda', 'j_lambda'}))
+    # logger.debug(params.model_dump_json(exclude={'f_lambda', 'j_lambda'}))
 
     images_dir = utils.get_images_dir(uuid)
     utils.mkdir_if_nonexistent(images_dir)
@@ -63,5 +66,5 @@ def create_still(uuid: str, params: types.StillParameters):
     utils.mkdir_if_nonexistent(images_dir)
     solver = Solver(params.f_lambda, params.j_lambda, params.y_pixels, params.x_pixels, 0)
 
-    produce_image_timed(solver, images_dir, params.colour_set, 0)
-
+    generation_time = produce_image_timed(solver, images_dir, params.colour_set, 0)
+    logger.debug(f'Generation time: {generation_time} s')
