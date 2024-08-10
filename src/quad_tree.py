@@ -24,6 +24,7 @@ quadtree_spec = [
     ('parent', optional(node_type)),
     ('terminal', boolean),
     ('child_idx', int32),
+    ('next', optional(node_type)),
     ('nw', optional(node_type)),
     ('ne', optional(node_type)),
     ('sw', optional(node_type)),
@@ -43,6 +44,7 @@ class QuadTree:
         if self.x0 == self.x1 and self.y0 == self.y1:
             self.terminal = True
         self.child_idx = -1
+        self.next: Optional['QuadTree'] = None
         self.nw: Optional['QuadTree'] = None
         self.ne: Optional['QuadTree'] = None
         self.sw: Optional['QuadTree'] = None
@@ -85,15 +87,21 @@ class QuadTree:
         # if self._next_node_dfs_generator is None:
         #     self._next_node_dfs_generator = self._create_next_node_dfs_generator(quadtree_dict)
         # return next(self._next_node_dfs_generator)
+
+        self.next = None
         self.child_idx += 1
         children: List['QuadTree'] = self.get_children()
         if self.child_idx == len(children):
             if self.parent is None:
-                return None
-            next_node: Optional['QuadTree'] = self.parent.get_next_node_dfs()
-            if next_node is not None: return next_node
-            return None
-        return children[self.child_idx]
+                self.next = None
+            # next_node: Optional['QuadTree'] = self.parent.get_next_node_dfs()
+            # if next_node is not None: return next_node
+            # return None
+            else:
+                self.next = self.parent.get_next_node_dfs()
+        else:
+            self.next = children[self.child_idx]
+        return self.next
 
     # def _create_next_node_dfs_generator(self, quadtree_dict):
     #     for child in self.get_children(quadtree_dict):
@@ -154,11 +162,16 @@ class QuadTree:
         self.se = qt
 
     def equals(self, other: 'QuadTree') -> bool:
-        return self.x0 == other.x0 and self.x1 == other.x1 \
-               and self.y0 == other.y0 and self.y1 == other.y1 \
-               and self.parent == other.parent
+        same_coords = self.x0 == other.x0 and self.x1 == other.x1 \
+               and self.y0 == other.y0 and self.y1 == other.y1
+        if self.parent is None and other.parent is None:
+            return same_coords
+        if self.parent is None or other.parent is None:
+            return False
+        return same_coords and self.parent.id == other.parent.id
     # def __eq__(self, other: 'QuadTree') -> bool:
     #     return self.x0 == other.x0 and self.x1 == other.x1 \
     #            and self.y0 == other.y0 and self.y1 == other.y1 \
     #            and self.parent == other.parent
-node_type.define(QuadTree.class_type.instance_type)
+if cfg.ENABLE_JIT:
+    node_type.define(optional(QuadTree.class_type.instance_type))

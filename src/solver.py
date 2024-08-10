@@ -67,7 +67,7 @@ class Solver(object):
 
         # Create the top QuadTree that encompasses the entire grid
         top_qt = QuadTree(0, self.x_coords.shape[0]-1, 0, self.y_coords.shape[0]-1, None)
-        qt = None
+        qt: Optional[QuadTree] = None
 
         # Depth-First Search through nested QuadTrees until every pixel has been filled in on the grids
         while True:
@@ -75,12 +75,12 @@ class Solver(object):
                 qt = top_qt
 
             # Iterate around the boundary of the QuadTree calculating the solution, and note if they are all identical
-            last_boundary_soln = None
+            last_boundary_soln = -93736
             unique_boundary_soln = True
             for i, j in qt.boundary_coordinates_generator():
                 self._set_pixel_values_if_unset(j, i)
                 if unique_boundary_soln:
-                    if last_boundary_soln:
+                    if last_boundary_soln != -93736:
                         unique_boundary_soln = self.solutions_grid[j, i] == last_boundary_soln
                     last_boundary_soln = self.solutions_grid[j, i]
 

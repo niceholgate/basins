@@ -1,4 +1,5 @@
 # import pytest
+from typing import Optional
 from src.quad_tree import QuadTree
 from typing import List
 
@@ -57,7 +58,7 @@ def test_get_next_node_dfs_no_early_termination():
     top_qt = QuadTree(0, 3, 0, 3, None)
     n_qts = 1
 
-    next_node_dfs = top_qt.get_next_node_dfs()
+    next_node_dfs: Optional[QuadTree] = top_qt.get_next_node_dfs()
     while next_node_dfs:
         next_node_dfs = next_node_dfs.get_next_node_dfs()
         n_qts += 1
@@ -70,7 +71,7 @@ def test_get_next_node_dfs_one_quadrant_early_termination():
     top_qt = QuadTree(0, 3, 0, 3, None)
     n_qts = 1
 
-    next_node_dfs = top_qt.get_next_node_dfs()
+    next_node_dfs: Optional[QuadTree] = top_qt.get_next_node_dfs()
     top_qt.get_children()[-1].terminal = True
     while next_node_dfs:
         next_node_dfs = next_node_dfs.get_next_node_dfs()
