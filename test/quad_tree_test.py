@@ -53,31 +53,31 @@ def test_random_interior_coordinate():
         assert 0 < sut.random_interior_y() < 4
 
 
-def test_get_next_node_dfs_no_early_termination():
-    # 4x4 grid should create 1+4+16=21 QuadTrees
-    top_qt = QuadTree(0, 3, 0, 3, None)
-    n_qts = 1
-
-    next_node_dfs: Optional[QuadTree] = top_qt.get_next_node_dfs()
-    while next_node_dfs:
-        next_node_dfs = next_node_dfs.get_next_node_dfs()
-        n_qts += 1
-
-    assert n_qts == 21
-
-
-def test_get_next_node_dfs_one_quadrant_early_termination():
-    # 4x4 grid with one quadrant terminal should create 1+4+12=17 QuadTrees
-    top_qt = QuadTree(0, 3, 0, 3, None)
-    n_qts = 1
-
-    next_node_dfs: Optional[QuadTree] = top_qt.get_next_node_dfs()
-    top_qt.get_children()[-1].terminal = True
-    while next_node_dfs:
-        next_node_dfs = next_node_dfs.get_next_node_dfs()
-        n_qts += 1
-
-    assert n_qts == 17
+# def test_get_next_node_dfs_no_early_termination():
+#     # 4x4 grid should create 1+4+16=21 QuadTrees
+#     top_qt = QuadTree(0, 3, 0, 3, None)
+#     n_qts = 1
+#
+#     next_node_dfs: Optional[QuadTree] = top_qt.get_next_node_dfs()
+#     while next_node_dfs:
+#         next_node_dfs = next_node_dfs.get_next_node_dfs()
+#         n_qts += 1
+#
+#     assert n_qts == 21
+#
+#
+# def test_get_next_node_dfs_one_quadrant_early_termination():
+#     # 4x4 grid with one quadrant terminal should create 1+4+12=17 QuadTrees
+#     top_qt = QuadTree(0, 3, 0, 3, None)
+#     n_qts = 1
+#
+#     next_node_dfs: Optional[QuadTree] = top_qt.get_next_node_dfs()
+#     top_qt.get_children()[-1].terminal = True
+#     while next_node_dfs:
+#         next_node_dfs = next_node_dfs.get_next_node_dfs()
+#         n_qts += 1
+#
+#     assert n_qts == 17
 
 
 def test_equals():

@@ -68,6 +68,9 @@ class Solver(object):
         # Create the top QuadTree that encompasses the entire grid
         top_qt = QuadTree(0, self.x_coords.shape[0]-1, 0, self.y_coords.shape[0]-1, None)
         qt: Optional[QuadTree] = None
+        qts = []
+        for child in top_qt.get_children():
+            qts.append(child)
 
         # Depth-First Search through nested QuadTrees until every pixel has been filled in on the grids
         while True:
@@ -106,16 +109,31 @@ class Solver(object):
                 if unique_interior_soln:
                     self.solutions_grid[qt.y0:qt.y1 + 1, qt.x0:qt.x1 + 1] = last_boundary_soln
                     iters = self.iterations_grid[qt.y0:qt.y1 + 1, qt.x0:qt.x1 + 1]
-                    known_iters = iters[iters != 0]
-                    self.iterations_grid[qt.y0:qt.y1 + 1, qt.x0:qt.x1 + 1] = int(known_iters.mean())
+                    # TODO: is this slow?
+                    # known_iters = iters[iters != 0]
+                    # self.iterations_grid[qt.y0:qt.y1 + 1, qt.x0:qt.x1 + 1] = int(known_iters.mean())
+                    sum_iters = 0
+                    count_iters = 0
+                    for _, value in np.ndenumerate(iters):
+                        if value > 0:
+                            count_iters += 1
+                            sum_iters += value
+                    mean_iters = int(sum_iters/count_iters)
+                    self.iterations_grid[qt.y0:qt.y1 + 1, qt.x0:qt.x1 + 1] = mean_iters
                     qt.terminal = True
 
-            # Set the next QuadTree on which to perform calculations.
-            qt = qt.get_next_node_dfs()
-
             # Once the DFS ends, then we must have finished the whole grid.
-            if qt is None:
+            if len(qts)==0:
                 break
+
+            # Set the next QuadTree on which to perform calculations.
+            qt = qts.pop()
+
+            # Add its children to the stack
+            for child in qt.get_children():
+                qts.append(child)
+
+
 
     def _find_unique_solutions(self) -> Optional[npt.NDArray]:
         """Do a randomised search to find unique solutions, stopping early if new unique solutions stop being found."""

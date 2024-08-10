@@ -72,39 +72,39 @@ class QuadTree:
     def random_interior_y(self) -> int:
         return int(np.random.randint(self.y0 + 1, self.y1))
 
-    def get_next_node_dfs(self) -> Optional['QuadTree']:
-        # if self._next_node_dfs_generator is None:
-        #     self._next_node_dfs_generator = self._create_next_node_dfs_generator(quadtree_dict)
-        # return next(self._next_node_dfs_generator)
-        with nb.objmode():
-            f = open("demofile2.txt", "a")
-            f.write('\n Hello!')
-            # f.write(str(x0)+str(x1)+str(y0)+str(y1))
-            f.close()
-
-        self.next = None
-        self.child_idx += 1
-        children: List['QuadTree'] = self.get_children()
-        if self.child_idx == len(children):
-            if self.parent is None:
-                self.next = None
-            # next_node: Optional['QuadTree'] = self.parent.get_next_node_dfs()
-            # if next_node is not None: return next_node
-            # return None
-            else:
-                # x0 = self.parent.x0
-                # x1 = self.parent.x1
-                # y0 = self.parent.y0
-                # y1 = self.parent.y1
-                with nb.objmode():
-                    f = open("demofile2.txt", "a")
-                    f.write('\n Hello!')
-                    # f.write(str(x0)+str(x1)+str(y0)+str(y1))
-                    f.close()
-                self.next = self.parent.get_next_node_dfs()
-        else:
-            self.next = children[self.child_idx]
-        return self.next
+    # def get_next_node_dfs(self) -> Optional['QuadTree']:
+    #     # if self._next_node_dfs_generator is None:
+    #     #     self._next_node_dfs_generator = self._create_next_node_dfs_generator(quadtree_dict)
+    #     # return next(self._next_node_dfs_generator)
+    #     with nb.objmode():
+    #         f = open("demofile2.txt", "a")
+    #         f.write('\n Hello!')
+    #         # f.write(str(x0)+str(x1)+str(y0)+str(y1))
+    #         f.close()
+    #
+    #     self.next = None
+    #     self.child_idx += 1
+    #     children: List['QuadTree'] = self.get_children()
+    #     if self.child_idx == len(children):
+    #         if self.parent is None:
+    #             self.next = None
+    #         # next_node: Optional['QuadTree'] = self.parent.get_next_node_dfs()
+    #         # if next_node is not None: return next_node
+    #         # return None
+    #         else:
+    #             # x0 = self.parent.x0
+    #             # x1 = self.parent.x1
+    #             # y0 = self.parent.y0
+    #             # y1 = self.parent.y1
+    #             with nb.objmode():
+    #                 f = open("demofile2.txt", "a")
+    #                 f.write('\n Hello!')
+    #                 # f.write(str(x0)+str(x1)+str(y0)+str(y1))
+    #                 f.close()
+    #             self.next = self.parent.get_next_node_dfs()
+    #     else:
+    #         self.next = children[self.child_idx]
+    #     return self.next
 
     # def _create_next_node_dfs_generator(self, quadtree_dict):
     #     for child in self.get_children(quadtree_dict):

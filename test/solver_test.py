@@ -36,6 +36,7 @@ def test_newton_solve():
     assert iters == 4
 
 
+# TODO: why is this slow with JIT?
 def test_solve_grid_and_solve_grid_quadtrees(solve_times):
     sut = solver.Solver(LAMBDA_F, LAMBDA_J, 15, 18, 1.0)
 
@@ -57,3 +58,4 @@ def test_solve_grid_and_solve_grid_quadtrees(solve_times):
     solve_times['solve_grid_quadtrees'] = (datetime.now() - start).total_seconds()
 
     assert sut.solutions_grid.sum() == 708
+    assert sut.iterations_grid.sum() == 1730
