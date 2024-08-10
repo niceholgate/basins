@@ -67,7 +67,6 @@ class Solver(object):
 
         # Create the top QuadTree that encompasses the entire grid
         top_qt = QuadTree(0, self.x_coords.shape[0]-1, 0, self.y_coords.shape[0]-1, None)
-        qt_dict = {top_qt.id: top_qt}
         qt = None
 
         # Depth-First Search through nested QuadTrees until every pixel has been filled in on the grids
@@ -112,13 +111,11 @@ class Solver(object):
                     qt.terminal = True
 
             # Set the next QuadTree on which to perform calculations.
-            next_key = qt.get_next_node_dfs(qt_dict)
+            qt = qt.get_next_node_dfs()
 
             # Once the DFS ends, then we must have finished the whole grid.
-            if next_key is None:
+            if qt is None:
                 break
-
-            qt = qt_dict[next_key]
 
     def _find_unique_solutions(self) -> Optional[npt.NDArray]:
         """Do a randomised search to find unique solutions, stopping early if new unique solutions stop being found."""
