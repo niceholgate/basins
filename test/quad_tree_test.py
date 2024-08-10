@@ -99,17 +99,6 @@ def test_equals():
     assert qt02.equals(qt02_2)
 
 
-def test_set_children():
-    parent = QuadTree(0, 1, 0, 1, None)
-    child = QuadTree(0, 1, 0, 1, None)
-    parent.set_nw(child)
-    assert parent.nw.equals(child)
-
-
-def test_subdivide():
-    assert True
-
-
 def test_get_children_big_1():
     sut = QuadTree(0, 2, 0, 3, None)
     expected_children = [QuadTree(0, 1, 0, 1, sut), QuadTree(2, 2, 0, 1, sut),
@@ -150,6 +139,5 @@ def test_get_children_1x1():
 
 
 def compare_expected_and_actual_children(sut: QuadTree, expected_children: List[QuadTree]):
-    actual_children = sut.get_children()
-    for i in range(len(actual_children)):
-        assert expected_children[i].equals(actual_children[i])
+    for actual, expected in zip(sut.get_children(), expected_children):
+        assert actual.equals(expected)

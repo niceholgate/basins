@@ -18,6 +18,7 @@ def produce_image_timed(solver: Solver, images_dir, colour_set, i):
     imaging.save_still(images_dir, solver, smoothing=False, blending=False, colour_set=colour_set, frame=i)
 
 # TODO:
+# - precompile https://numba.pydata.org/numba-doc/dev/user/pycc.html
 # -improve UI layout + add tabs (sidebar) + refactoring
 # -loading bars with server-sent events
 ###https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events?fbclid=IwZXh0bgNhZW0CMTAAAR0Jc8W85IGtv2YlQdb2PT3QU8-d7vmNGV8_vW6rgQxOKPOdzwto9SDveRI_aem_wJvZf1ZyYehwhxYwiRISCg
