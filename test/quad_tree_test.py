@@ -48,9 +48,8 @@ def test_iterate_interior_coordinates_2x2():
 def test_random_interior_coordinate():
     sut = QuadTree(0, 3, 0, 4, None)
     for _ in range(10):
-        random_coordinates = sut.random_interior_coordinates()
-        assert 0 < random_coordinates[0] < 3
-        assert 0 < random_coordinates[1] < 4
+        assert 0 < sut.random_interior_x() < 3
+        assert 0 < sut.random_interior_y() < 4
 
 
 def test_get_next_node_dfs_no_early_termination():
@@ -76,6 +75,40 @@ def test_get_next_node_dfs_one_quadrant_early_termination():
         next_node_dfs = qt_dict[next_node_dfs].get_next_node_dfs(qt_dict)
 
     assert len(qt_dict) == 17
+
+
+def test_equals():
+    # Different parent, same coords
+    qt0 = QuadTree(0, 3, 0, 2, None)
+    qt1 = QuadTree(0, 2, 0, 1, None)
+    qt01 = QuadTree(0, 3, 0, 2, qt0.id)
+    qt11 = QuadTree(0, 3, 0, 2, qt1.id)
+    print(qt0.id)
+    print(qt1.id)
+    assert not qt01.equals(qt11)
+
+    # Same parent, different coords
+    qt02 = QuadTree(0, 1, 0, 2, qt0.id)
+    assert not qt01.equals(qt02)
+
+    # Same both
+    qt02_2 = QuadTree(0, 1, 0, 2, qt0.id)
+    assert qt02.equals(qt02_2)
+
+
+def test_set_children():
+    parent = QuadTree(0, 1, 0, 1, None)
+    qt_dict = {parent.id: parent}
+
+    child = QuadTree(0, 1, 0, 1, None)
+    parent.set_nw(child, qt_dict)
+    assert child in qt_dict.values()
+    assert child.id in qt_dict.keys()
+    assert qt_dict[parent.nw].equals(child)
+
+
+def test_subdivide():
+    assert True
 
 
 def test_get_children_big_1():
@@ -120,5 +153,5 @@ def test_get_children_1x1():
 def compare_expected_and_actual_children(sut: QuadTree, expected_children: List[QuadTree]):
     qt_dict = {sut.id: sut}
     actual_children_ids = sut.get_children(qt_dict)
-    for i in range(actual_children_ids):
-        assert expected_children[i] == qt_dict.get(actual_children_ids[i])
+    for i in range(len(actual_children_ids)):
+        assert expected_children[i].equals(qt_dict.get(actual_children_ids[i]))

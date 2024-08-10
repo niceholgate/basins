@@ -94,7 +94,8 @@ class Solver(object):
                 pixels_checked = 0
                 #TODO: if there are fewer than X pixels, explicitly check all of the interior pixels instead of random ones
                 while pixels_checked < 20 and pixels_checked < n_interior_pixels:
-                    rand_i, rand_j = qt.random_interior_coordinates()
+                    rand_i = qt.random_interior_x()
+                    rand_j = qt.random_interior_y()
                     self._set_pixel_values_if_unset(rand_j, rand_i)
                     unique_interior_soln = self.solutions_grid[rand_j, rand_i] == last_boundary_soln
                     if not unique_interior_soln:
