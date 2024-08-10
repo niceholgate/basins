@@ -1,3 +1,4 @@
+import time
 from typing import Optional, List, Tuple
 import numpy as np
 import numba as nb
@@ -50,18 +51,6 @@ class QuadTree:
         self.sw: Optional['QuadTree'] = None
         self.se: Optional['QuadTree'] = None
 
-    # @staticmethod
-    # def floatToString(floatnumber: types.float32) -> str:
-    #     stringNumber: str = ""
-    #     whole: int = math.floor(floatnumber)
-    #     frac: int = 0
-    #     digits: float = float(floatnumber % 1)
-    #     digitsTimes100: float = float(digits) * float(100.0)
-    #     if digitsTimes100 is not None:
-    #         frac = math.floor(digitsTimes100)
-    #     stringNumber = str(whole) + "." + str(frac)
-    #     return stringNumber
-
     def boundary_coordinates_generator(self) -> Tuple[int, int]:
         for x in range(self.x0, self.x1 + 1):
             yield x, self.y0
@@ -87,6 +76,11 @@ class QuadTree:
         # if self._next_node_dfs_generator is None:
         #     self._next_node_dfs_generator = self._create_next_node_dfs_generator(quadtree_dict)
         # return next(self._next_node_dfs_generator)
+        with nb.objmode():
+            f = open("demofile2.txt", "a")
+            f.write('\n Hello!')
+            # f.write(str(x0)+str(x1)+str(y0)+str(y1))
+            f.close()
 
         self.next = None
         self.child_idx += 1
@@ -98,6 +92,15 @@ class QuadTree:
             # if next_node is not None: return next_node
             # return None
             else:
+                # x0 = self.parent.x0
+                # x1 = self.parent.x1
+                # y0 = self.parent.y0
+                # y1 = self.parent.y1
+                with nb.objmode():
+                    f = open("demofile2.txt", "a")
+                    f.write('\n Hello!')
+                    # f.write(str(x0)+str(x1)+str(y0)+str(y1))
+                    f.close()
                 self.next = self.parent.get_next_node_dfs()
         else:
             self.next = children[self.child_idx]
