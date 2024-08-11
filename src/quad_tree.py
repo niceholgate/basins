@@ -13,10 +13,8 @@ nb.config.SHOW_HELP = True
 node_type = nb.deferred_type()
 quadtree_spec = [
     ('id', types.unicode_type),
-    ('x0', int32),
-    ('x1', int32),
-    ('y0', int32),
-    ('y1', int32),
+    ('x_lims', nb.typeof((0, 100))),
+    ('y_lims', nb.typeof((0, 100))),
     ('parent', optional(node_type)),
     ('terminal', boolean),
     ('nw', optional(node_type)),
@@ -27,15 +25,13 @@ quadtree_spec = [
 @jitclass(quadtree_spec)
 class QuadTree:
 
-    def __init__(self, x0: int, x1: int, y0: int, y1: int, parent: Optional['QuadTree']):
+    def __init__(self, x_lims: Tuple[int, int], y_lims: Tuple[int, int], parent: Optional['QuadTree']):
         self.id: str = str(np.random.randint(0, 1000000))
-        self.x0: int = x0
-        self.x1: int = x1
-        self.y0: int = y0
-        self.y1: int = y1
+        self.x_lims: Tuple[int, int] = x_lims
+        self.y_lims: Tuple[int, int] = y_lims
         self.parent: Optional['QuadTree'] = parent
         self.terminal: bool = False
-        if self.x0 == self.x1 and self.y0 == self.y1:
+        if self.x_lims[0] == self.x_lims[1] and self.y_lims[0] == self.y_lims[1]:
             self.terminal = True
         # TODO: dict of children
         self.nw: Optional['QuadTree'] = None
@@ -44,25 +40,25 @@ class QuadTree:
         self.se: Optional['QuadTree'] = None
 
     def boundary_coordinates_generator(self) -> Tuple[int, int]:
-        for x in range(self.x0, self.x1 + 1):
-            yield x, self.y0
-        for y in range(self.y0 + 1, self.y1 + 1):
-            yield self.x1, y
-        for x in range(self.x1-1, self.x0-1, -1):
-            yield x, self.y1
-        for y in range(self.y1-1, self.y0, -1):
-            yield self.x0, y
+        for x in range(self.x_lims[0], self.x_lims[1] + 1):
+            yield x, self.y_lims[0]
+        for y in range(self.y_lims[0] + 1, self.y_lims[1] + 1):
+            yield self.x_lims[1], y
+        for x in range(self.x_lims[1]-1, self.x_lims[0]-1, -1):
+            yield x, self.y_lims[1]
+        for y in range(self.y_lims[1]-1, self.y_lims[0], -1):
+            yield self.x_lims[0], y
 
     def interior_coordinates_generator(self) -> Tuple[int, int]:
-        for x in range(self.x0 + 1, self.x1):
-            for y in range(self.y0 + 1, self.y1):
+        for x in range(self.x_lims[0] + 1, self.x_lims[1]):
+            for y in range(self.y_lims[0] + 1, self.y_lims[1]):
                 yield x, y
 
     def random_interior_x(self) -> int:
-        return int(np.random.randint(self.x0 + 1, self.x1))
+        return int(np.random.randint(self.x_lims[0] + 1, self.x_lims[1]))
 
     def random_interior_y(self) -> int:
-        return int(np.random.randint(self.y0 + 1, self.y1))
+        return int(np.random.randint(self.y_lims[0] + 1, self.y_lims[1]))
 
     def get_children(self) -> List['QuadTree']:
         self._subdivide()
@@ -78,27 +74,27 @@ class QuadTree:
         if self.terminal:
             return
 
-        x_mid: int = int(np.floor((self.x0+self.x1)/2))
-        y_mid: int = int(np.floor((self.y0+self.y1)/2))
+        x_mid: int = int(np.floor((self.x_lims[0]+self.x_lims[1])/2))
+        y_mid: int = int(np.floor((self.y_lims[0]+self.y_lims[1])/2))
 
         # For a single column, can only subdivide in y direction
-        if self.x0 == self.x1:
-            self.nw = QuadTree(x_mid, x_mid, self.y0, y_mid, self)
-            self.sw = QuadTree(x_mid, x_mid, y_mid + 1, self.y1, self)
+        if self.x_lims[0] == self.x_lims[1]:
+            self.nw = QuadTree((x_mid, x_mid), (self.y_lims[0], y_mid), self)
+            self.sw = QuadTree((x_mid, x_mid), (y_mid + 1, self.y_lims[1]), self)
             return
         # For a single row, can only subdivide in y direction
-        if self.y0 == self.y1:
-            self.nw = QuadTree(self.x0, x_mid, y_mid, y_mid, self)
-            self.ne = QuadTree(x_mid + 1, self.x1, y_mid, y_mid, self)
+        if self.y_lims[0] == self.y_lims[1]:
+            self.nw = QuadTree((self.x_lims[0], x_mid), (y_mid, y_mid), self)
+            self.ne = QuadTree((x_mid + 1, self.x_lims[1]), (y_mid, y_mid), self)
             return
-        self.nw = QuadTree(self.x0, x_mid, self.y0, y_mid, self)
-        self.ne = QuadTree(x_mid + 1, self.x1, self.y0, y_mid, self)
-        self.sw = QuadTree(self.x0, x_mid, y_mid + 1, self.y1, self)
-        self.se = QuadTree(x_mid + 1, self.x1, y_mid + 1, self.y1, self)
+        self.nw = QuadTree((self.x_lims[0], x_mid), (self.y_lims[0], y_mid), self)
+        self.ne = QuadTree((x_mid + 1, self.x_lims[1]), (self.y_lims[0], y_mid), self)
+        self.sw = QuadTree((self.x_lims[0], x_mid), (y_mid + 1, self.y_lims[1]), self)
+        self.se = QuadTree((x_mid + 1, self.x_lims[1]), (y_mid + 1, self.y_lims[1]), self)
 
     def equals(self, other: 'QuadTree') -> bool:
-        same_coords = self.x0 == other.x0 and self.x1 == other.x1 \
-               and self.y0 == other.y0 and self.y1 == other.y1
+        same_coords = self.x_lims[0] == other.x_lims[0] and self.x_lims[1] == other.x_lims[1] \
+               and self.y_lims[0] == other.y_lims[0] and self.y_lims[1] == other.y_lims[1]
         same_parents = (self.parent is None and other.parent is None) \
             or (self.parent is not None and other.parent is not None and self.parent.id == other.parent.id)
         return same_coords and same_parents

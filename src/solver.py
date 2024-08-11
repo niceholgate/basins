@@ -66,7 +66,7 @@ class Solver(object):
         """Find which unique solution is reached for each pixel, and how many Newton's method iterations it took."""
 
         # Create the top QuadTree that encompasses the entire grid
-        top_qt = QuadTree(0, self.x_coords.shape[0]-1, 0, self.y_coords.shape[0]-1, None)
+        top_qt = QuadTree((0, self.x_coords.shape[0]-1), (0, self.y_coords.shape[0]-1), None)
         qt: Optional[QuadTree] = None
         qts = []
         for child in top_qt.get_children():
@@ -91,8 +91,8 @@ class Solver(object):
             # the entire region encompassed by the QuadTree is uniform...
             if unique_boundary_soln:
                 unique_interior_soln = True
-                n_interior_pixels = max((qt.x1 - qt.x0 - 1), 0) *\
-                                    max((qt.y1 - qt.y0 - 1), 0)
+                n_interior_pixels = max((qt.x_lims[1] - qt.x_lims[0] - 1), 0) *\
+                                    max((qt.y_lims[1] - qt.y_lims[0] - 1), 0)
                 pixels_checked = 0
                 #TODO: if there are fewer than X pixels, explicitly check all of the interior pixels instead of random ones
                 while pixels_checked < 20 and pixels_checked < n_interior_pixels:
@@ -107,8 +107,8 @@ class Solver(object):
                 # ... and if so, then fill the whole QuadTree area with that solution, and mark it as terminal
                 # (this will cause the QuadTree to have no children, so its next DFS node is its parent).
                 if unique_interior_soln:
-                    self.solutions_grid[qt.y0:qt.y1 + 1, qt.x0:qt.x1 + 1] = last_boundary_soln
-                    iters = self.iterations_grid[qt.y0:qt.y1 + 1, qt.x0:qt.x1 + 1]
+                    self.solutions_grid[qt.y_lims[0]:qt.y_lims[1] + 1, qt.x_lims[0]:qt.x_lims[1] + 1] = last_boundary_soln
+                    iters = self.iterations_grid[qt.y_lims[0]:qt.y_lims[1] + 1, qt.x_lims[0]:qt.x_lims[1] + 1]
                     # TODO: is this slow?
                     # known_iters = iters[iters != 0]
                     # self.iterations_grid[qt.y0:qt.y1 + 1, qt.x0:qt.x1 + 1] = int(known_iters.mean())
@@ -119,7 +119,7 @@ class Solver(object):
                             count_iters += 1
                             sum_iters += value
                     mean_iters = int(sum_iters/count_iters)
-                    self.iterations_grid[qt.y0:qt.y1 + 1, qt.x0:qt.x1 + 1] = mean_iters
+                    self.iterations_grid[qt.y_lims[0]:qt.y_lims[1] + 1, qt.x_lims[0]:qt.x_lims[1] + 1] = mean_iters
                     qt.terminal = True
 
             # Once the DFS ends, then we must have finished the whole grid.
