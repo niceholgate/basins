@@ -31,8 +31,8 @@ def test_get_lambdas():
 
 
 def test_newton_solve():
-    soln, iters = solver.newton_solve(LAMBDA_F, LAMBDA_J, np.array([1.0, 2.0]), 0.0)
-    assert solver.points_approx_equal(soln, np.array([0.64838359, 1.20401283]))
+    soln, iters = solver.Solver.newton_solve(LAMBDA_F, LAMBDA_J, np.array([1.0, 2.0]), 0.0)
+    assert solver.Solver.points_approx_equal(soln, np.array([0.64838359, 1.20401283]))
     assert iters == 4
 
 

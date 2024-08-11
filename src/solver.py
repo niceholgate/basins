@@ -11,30 +11,6 @@ from typing import Tuple, Callable, List, Optional
 nb.config.DISABLE_JIT = not cfg.ENABLE_JIT
 
 
-@nb.njit(target_backend=cfg.NUMBA_TARGET)
-def newton_solve(f_lam: Callable, j_lam: Callable, starting_guess: npt.NDArray, d: float) -> Tuple[npt.NDArray, int]:
-    """Perform Newton's method until either the solution converges or the maximum iterations are exceeded."""
-    current_guess = starting_guess
-    # delta_norm_hist = []
-    delta_norm = np.float_(1000.0)
-    n_iters = 0
-    while delta_norm > cfg.EPSILON and n_iters < cfg.MAX_ITERS:
-        f_num = np.array(f_lam(current_guess[0], current_guess[1], d), dtype=np.float_)
-        j_num = np.array(j_lam(current_guess[0], current_guess[1], d), dtype=np.float_)
-        delta = np.linalg.solve(j_num, -f_num).flatten()
-        current_guess = current_guess + delta
-        delta_norm = np.linalg.norm(delta)
-        # delta_norm_hist.append(delta_norm)
-        n_iters += 1
-
-    return current_guess, n_iters
-
-
-@nb.njit(target_backend=cfg.NUMBA_TARGET)
-def points_approx_equal(p1: npt.NDArray, p2: npt.NDArray) -> bool:
-    return bool(np.linalg.norm(p1 - p2) < 2 * cfg.EPSILON)
-
-
 solution_context_spec = [
     ('f_lambda', types.List(float64)(float64, float64, float64).as_type()),
     ('j_lambda', types.List(types.List(float64))(float64, float64, float64).as_type()),
@@ -55,6 +31,29 @@ class Solver(object):
         self.x_coords, self.y_coords = self._get_image_pixel_coords(y_pixels, x_pixels)
         self.solutions_grid = -np.ones((y_pixels, x_pixels), dtype=np.int_)
         self.iterations_grid = np.zeros((y_pixels, x_pixels), dtype=np.int_)
+
+    @staticmethod
+    def newton_solve(f_lam: Callable, j_lam: Callable, starting_guess: npt.NDArray, d: float) -> Tuple[
+        npt.NDArray, int]:
+        """Perform Newton's method until either the solution converges or the maximum iterations are exceeded."""
+        current_guess = starting_guess
+        # delta_norm_hist = []
+        delta_norm = np.float_(1000.0)
+        n_iters = 0
+        while delta_norm > cfg.EPSILON and n_iters < cfg.MAX_ITERS:
+            f_num = np.array(f_lam(current_guess[0], current_guess[1], d), dtype=np.float_)
+            j_num = np.array(j_lam(current_guess[0], current_guess[1], d), dtype=np.float_)
+            delta = np.linalg.solve(j_num, -f_num).flatten()
+            current_guess = current_guess + delta
+            delta_norm = np.linalg.norm(delta)
+            # delta_norm_hist.append(delta_norm)
+            n_iters += 1
+
+        return current_guess, n_iters
+
+    @staticmethod
+    def points_approx_equal(p1: npt.NDArray, p2: npt.NDArray) -> bool:
+        return bool(np.linalg.norm(p1 - p2) < 2 * cfg.EPSILON)
 
     def solve_grid(self) -> None:
         """Find which unique solution is reached for each pixel, and how many Newton's method iterations it took."""
@@ -147,14 +146,14 @@ class Solver(object):
         converged_search_points_since_last_new_soln = 0
         for idx in range(x_randoms.shape[0]):
             point_count += 1
-            soln, iters = newton_solve(self.f_lambda, self.j_lambda, np.array([x_randoms[idx], y_randoms[idx]], dtype=np.float64), self.delta)
+            soln, iters = self.newton_solve(self.f_lambda, self.j_lambda, np.array([x_randoms[idx], y_randoms[idx]], dtype=np.float64), self.delta)
             if iters < cfg.MAX_ITERS:
                 if not unique_solns:
                     unique_solns.append(soln)
 
                 any_equal = False
                 for existing_soln in unique_solns:
-                    if points_approx_equal(existing_soln, soln):
+                    if self.points_approx_equal(existing_soln, soln):
                         any_equal = True
                         break
                 if any_equal:
@@ -202,7 +201,7 @@ class Solver(object):
     def _get_index_of_matching_unique_soln(self, soln: npt.NDArray) -> int:
         match = -1
         for unique_soln_idx in range(self.unique_solutions.shape[0]):
-            if points_approx_equal(self.unique_solutions[unique_soln_idx, :], soln):
+            if self.points_approx_equal(self.unique_solutions[unique_soln_idx, :], soln):
                 match = unique_soln_idx + 1
                 break
         return match
@@ -210,7 +209,7 @@ class Solver(object):
     def _set_pixel_values_if_unset(self, j: int, i: int):
         # Set the values for this pixel if it hasn't been attempted yet (-1)
         if self.solutions_grid[j, i] == -1:
-            solution_pixel, iterations_pixel = newton_solve(self.f_lambda, self.j_lambda, np.array([self.x_coords[i], self.y_coords[j]]), self.delta)
+            solution_pixel, iterations_pixel = self.newton_solve(self.f_lambda, self.j_lambda, np.array([self.x_coords[i], self.y_coords[j]]), self.delta)
             self.iterations_grid[j, i] = iterations_pixel
             if iterations_pixel < cfg.MAX_ITERS:
                 match = self._get_index_of_matching_unique_soln(solution_pixel)

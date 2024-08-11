@@ -3,13 +3,12 @@ import numpy as np
 import numba as nb
 import src.config as cfg
 from numba.experimental import jitclass
-from numba import int32, optional, types, boolean
+from numba import optional, types, boolean
 
 nb.config.DISABLE_JIT = not cfg.ENABLE_JIT
 nb.config.SHOW_HELP = True
 
 
-# TODO: numba.typed.Dict? https://numba.pydata.org/numba-doc/latest/user/jitclass.html
 node_type = nb.deferred_type()
 quadtree_spec = [
     ('id', types.unicode_type),
@@ -33,7 +32,6 @@ class QuadTree:
         self.terminal: bool = False
         if self.x_lims[0] == self.x_lims[1] and self.y_lims[0] == self.y_lims[1]:
             self.terminal = True
-        # TODO: dict of children
         self.nw: Optional['QuadTree'] = None
         self.ne: Optional['QuadTree'] = None
         self.sw: Optional['QuadTree'] = None
