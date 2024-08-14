@@ -1,4 +1,4 @@
-from src.solver import Solver
+import src.solver as slv
 import src.imaging as imaging
 import src.request_types as types
 import src.utils as utils
@@ -9,13 +9,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+
 @utils.timed
-def produce_image_timed(solver: Solver, images_dir, colour_set, i):
-    if cfg.ENABLE_QUADTREES:
-        solver.solve_grid_quadtrees()
-    else:
-        solver.solve_grid()
-    imaging.save_still(images_dir, solver, smoothing=False, blending=False, colour_set=colour_set, frame=i)
+def produce_image_timed(f_lambda, j_lambda, y_pixels, x_pixels, delta, images_dir, colour_set, i):
+    soln = slv.run_solver(f_lambda, j_lambda, y_pixels, x_pixels, delta)
+    imaging.save_still(images_dir, soln, smoothing=False, blending=False, colour_set=colour_set, frame=i)
+
 
 # TODO:
 # - precompile https://numba.pydata.org/numba-doc/dev/user/pycc.html
@@ -37,13 +36,13 @@ def create_animation(uuid: str, params: types.AnimationParameters):
 
     images_dir = utils.get_images_dir(uuid)
     utils.mkdir_if_nonexistent(images_dir)
-    solvers = [Solver(params.f_lambda, params.j_lambda, params.y_pixels, params.x_pixels, params.deltas[0])]
+    solvers = [slv.Solver(params.f_lambda, params.j_lambda, params.y_pixels, params.x_pixels, params.deltas[0])]
     expected_number_of_solns = solvers[0].unique_solutions.shape[0]
 
     # Assume that if the same number of solutions is found each time, the sorted solutions will
     # correspond to each other in sequence between different deltas
     for delta in params.deltas[1:]:
-        solvers.append(Solver(params.f_lambda, params.j_lambda, params.y_pixels, params.x_pixels, delta))
+        solvers.append(slv.Solver(params.f_lambda, params.j_lambda, params.y_pixels, params.x_pixels, delta))
         if solvers[-1].unique_solutions.shape[0] > expected_number_of_solns:
             print(f'Terminating because number of solutions increased from {expected_number_of_solns}'
                   f' to {solvers[-1].unique_solutions.shape[0]} for delta={delta}')
@@ -65,7 +64,6 @@ def create_still(uuid: str, params: types.StillParameters):
 
     images_dir = utils.get_images_dir(uuid)
     utils.mkdir_if_nonexistent(images_dir)
-    solver = Solver(params.f_lambda, params.j_lambda, params.y_pixels, params.x_pixels, 0)
+    generation_time = produce_image_timed(params.f_lambda, params.j_lambda, params.y_pixels, params.x_pixels, 0.0, images_dir, params.colour_set, 0)
 
-    generation_time = produce_image_timed(solver, images_dir, params.colour_set, 0)
     logger.debug(f'Generation time: {generation_time} s')

@@ -4,6 +4,7 @@ from src.quad_tree import QuadTree
 import numpy as np
 import numpy.typing as npt
 import numba as nb
+from numba.pycc import CC
 from numba.experimental import jitclass
 from numba import int32, float64, types
 from typing import Tuple, Callable, List, Optional
@@ -32,6 +33,17 @@ class Solver(object):
         self.solutions_grid = -np.ones((y_pixels, x_pixels), dtype=np.int_)
         self.iterations_grid = np.zeros((y_pixels, x_pixels), dtype=np.int_)
 
+    def to_dict(self):
+        # return self.x_coords
+        return {
+            # 'delta': self.delta,
+            # 'unique_solutions': self.unique_solutions,
+            # 'x_coords': self.x_coords,
+            # 'y_coords': self.y_coords,
+            'solutions_grid': self.solutions_grid,
+            'iterations_grid': self.iterations_grid
+        }
+
     @staticmethod
     def newton_solve(f_lam: Callable, j_lam: Callable, starting_guess: npt.NDArray, d: float) -> Tuple[
         npt.NDArray, int]:
@@ -57,8 +69,8 @@ class Solver(object):
 
     def solve_grid(self) -> None:
         """Find which unique solution is reached for each pixel, and how many Newton's method iterations it took."""
-        for j in range(self.y_coords.shape[0]):
-            for i in range(self.x_coords.shape[0]):
+        for j in nb.prange(self.y_coords.shape[0]):
+            for i in nb.prange(self.x_coords.shape[0]):
                 self._set_pixel_values_if_unset(j, i)
 
     def solve_grid_quadtrees(self) -> None:
@@ -133,7 +145,6 @@ class Solver(object):
                 qts.append(child)
 
 
-
     def _find_unique_solutions(self) -> Optional[npt.NDArray]:
         """Do a randomised search to find unique solutions, stopping early if new unique solutions stop being found."""
         unique_solns: List[npt.NDArray] = []
@@ -163,9 +174,9 @@ class Solver(object):
                     unique_solns.append(soln)
 
                 if converged_search_points_since_last_new_soln >= cfg.MAX_CONVERGED_SEARCH_POINTS_SINCE_LAST_NEW_SOLUTION:
-                    print(f'End search with {len(unique_solns)} unique solutions after reaching the limit of '
-                          f'{cfg.MAX_CONVERGED_SEARCH_POINTS_SINCE_LAST_NEW_SOLUTION} consecutive converged search points'
-                          f' since the last new unique solution.')
+                    # print(f'End search with {len(unique_solns)} unique solutions after reaching the limit of '
+                    #       f'{cfg.MAX_CONVERGED_SEARCH_POINTS_SINCE_LAST_NEW_SOLUTION} consecutive converged search points'
+                    #       f' since the last new unique solution.')
                     break
 
         # Temporarily convert the solutions to tuples to sort them (ensures the random search returns the same result each
@@ -173,7 +184,7 @@ class Solver(object):
         unique_solns_arr = np.array(sorted([(s[0], s[1]) for s in unique_solns]), np.float_)
 
         if len(unique_solns) < 2:
-            print('Found fewer than 2 unique solutions, cannot generate an image')
+            # print('Found fewer than 2 unique solutions, cannot generate an image')
             return None
 
         return unique_solns_arr
@@ -217,9 +228,33 @@ class Solver(object):
                     self.solutions_grid[j, i] = match
                 else:
                     self.solutions_grid[j, i] = 0
-                    print(f'WARNING: Image will ignore a novel solution found on the grid: {solution_pixel}')
+                    # print(f'WARNING: Image will ignore a novel solution found on the grid: {solution_pixel}')
             else:
                 self.solutions_grid[j, i] = 0
-                print(f'WARNING: Maximum iterations were exceeded for a pixel')
+                # print(f'WARNING: Maximum iterations were exceeded for a pixel')
+
+run_solver_spec = (
+    types.List(float64)(float64, float64, float64).as_type(),
+    types.List(types.List(float64))(float64, float64, float64).as_type(),
+    int32,
+    int32,
+    float64
+)
 
 
+cc = CC('le_module2')
+
+
+@cc.export('run_solver', run_solver_spec)
+def run_solver(f_lambda, j_lambda, y_pixels, x_pixels, delta):
+    solver = Solver(f_lambda, j_lambda, y_pixels, x_pixels, delta)
+    # if cfg.ENABLE_QUADTREES:
+    solver.solve_grid_quadtrees()
+    return solver.to_dict()
+
+@cc.export('subtract', 'float32(float32, float32)')
+def sub(x, y):
+    return x-y
+
+if __name__ == "__main__":
+    cc.compile()
