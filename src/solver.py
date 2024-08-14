@@ -12,7 +12,7 @@ from typing import Tuple, Callable, List, Optional
 nb.config.DISABLE_JIT = not cfg.ENABLE_JIT
 
 
-solution_context_spec = [
+solution_context_spec = (
     ('f_lambda', types.List(float64)(float64, float64, float64).as_type()),
     ('j_lambda', types.List(types.List(float64))(float64, float64, float64).as_type()),
     ('x_coords', float64[:]),
@@ -21,51 +21,17 @@ solution_context_spec = [
     ('iterations_grid', int32[:, :]),
     ('delta', float64),
     ('unique_solutions', float64[:, :])
-]
+)
 @jitclass(solution_context_spec)
 class Solver(object):
-    def __init__(self, f_lambda, j_lambda, x_pixels, y_pixels, delta):
+    def __init__(self, f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions):
         self.f_lambda = f_lambda
         self.j_lambda = j_lambda
         self.delta = delta
-        self.unique_solutions = self._find_unique_solutions()
-        self.x_coords, self.y_coords = self._get_image_pixel_coords(y_pixels, x_pixels)
-        self.solutions_grid = -np.ones((y_pixels, x_pixels), dtype=np.int_)
-        self.iterations_grid = np.zeros((y_pixels, x_pixels), dtype=np.int_)
-
-    def to_dict(self):
-        # return self.x_coords
-        return {
-            # 'delta': self.delta,
-            # 'unique_solutions': self.unique_solutions,
-            # 'x_coords': self.x_coords,
-            # 'y_coords': self.y_coords,
-            'solutions_grid': self.solutions_grid,
-            'iterations_grid': self.iterations_grid
-        }
-
-    @staticmethod
-    def newton_solve(f_lam: Callable, j_lam: Callable, starting_guess: npt.NDArray, d: float) -> Tuple[
-        npt.NDArray, int]:
-        """Perform Newton's method until either the solution converges or the maximum iterations are exceeded."""
-        current_guess = starting_guess
-        # delta_norm_hist = []
-        delta_norm = np.float_(1000.0)
-        n_iters = 0
-        while delta_norm > cfg.EPSILON and n_iters < cfg.MAX_ITERS:
-            f_num = np.array(f_lam(current_guess[0], current_guess[1], d), dtype=np.float_)
-            j_num = np.array(j_lam(current_guess[0], current_guess[1], d), dtype=np.float_)
-            delta = np.linalg.solve(j_num, -f_num).flatten()
-            current_guess = current_guess + delta
-            delta_norm = np.linalg.norm(delta)
-            # delta_norm_hist.append(delta_norm)
-            n_iters += 1
-
-        return current_guess, n_iters
-
-    @staticmethod
-    def points_approx_equal(p1: npt.NDArray, p2: npt.NDArray) -> bool:
-        return bool(np.linalg.norm(p1 - p2) < 2 * cfg.EPSILON)
+        self.unique_solutions = unique_solutions
+        self.x_coords, self.y_coords = x_coords, y_coords
+        self.solutions_grid = -np.ones((len(y_coords), len(x_coords)), dtype=np.int_)
+        self.iterations_grid = np.zeros((len(y_coords), len(x_coords)), dtype=np.int_)
 
     def solve_grid(self) -> None:
         """Find which unique solution is reached for each pixel, and how many Newton's method iterations it took."""
@@ -134,7 +100,7 @@ class Solver(object):
                     qt.terminal = True
 
             # Once the DFS ends, then we must have finished the whole grid.
-            if len(qts)==0:
+            if len(qts) == 0:
                 break
 
             # Set the next QuadTree on which to perform calculations.
@@ -144,75 +110,10 @@ class Solver(object):
             for child in qt.get_children():
                 qts.append(child)
 
-
-    def _find_unique_solutions(self) -> Optional[npt.NDArray]:
-        """Do a randomised search to find unique solutions, stopping early if new unique solutions stop being found."""
-        unique_solns: List[npt.NDArray] = []
-        x_randoms = cfg.SEARCH_X_LIMS[0] + (cfg.SEARCH_X_LIMS[1] - cfg.SEARCH_X_LIMS[0]) * np.random.random(
-            cfg.MAX_SEARCH_POINTS)
-        y_randoms = cfg.SEARCH_Y_LIMS[0] + (cfg.SEARCH_Y_LIMS[1] - cfg.SEARCH_Y_LIMS[0]) * np.random.random(
-            cfg.MAX_SEARCH_POINTS)
-        # randoms = np.array([x_randoms, y_randoms], dtype=np.float_)
-        point_count = 0
-        converged_search_points_since_last_new_soln = 0
-        for idx in range(x_randoms.shape[0]):
-            point_count += 1
-            soln, iters = self.newton_solve(self.f_lambda, self.j_lambda, np.array([x_randoms[idx], y_randoms[idx]], dtype=np.float64), self.delta)
-            if iters < cfg.MAX_ITERS:
-                if not unique_solns:
-                    unique_solns.append(soln)
-
-                any_equal = False
-                for existing_soln in unique_solns:
-                    if self.points_approx_equal(existing_soln, soln):
-                        any_equal = True
-                        break
-                if any_equal:
-                    converged_search_points_since_last_new_soln += 1
-                else:
-                    converged_search_points_since_last_new_soln = 0
-                    unique_solns.append(soln)
-
-                if converged_search_points_since_last_new_soln >= cfg.MAX_CONVERGED_SEARCH_POINTS_SINCE_LAST_NEW_SOLUTION:
-                    # print(f'End search with {len(unique_solns)} unique solutions after reaching the limit of '
-                    #       f'{cfg.MAX_CONVERGED_SEARCH_POINTS_SINCE_LAST_NEW_SOLUTION} consecutive converged search points'
-                    #       f' since the last new unique solution.')
-                    break
-
-        # Temporarily convert the solutions to tuples to sort them (ensures the random search returns the same result each
-        # time for a given system of equations) then put them into one 2D array
-        unique_solns_arr = np.array(sorted([(s[0], s[1]) for s in unique_solns]), np.float_)
-
-        if len(unique_solns) < 2:
-            # print('Found fewer than 2 unique solutions, cannot generate an image')
-            return None
-
-        return unique_solns_arr
-
-    def _get_image_pixel_coords(self, y_pixels: int, x_pixels: int) -> Tuple[npt.NDArray, npt.NDArray]:
-        """Get the coordinates of all the pixels in the image, ensuring that all the known solutions to the system of
-        equations fall safely within the bounds of the image."""
-        # Collapse to a grid of final image's aspect ratio and with some borders around the unique solutions
-        x_min, x_mean, x_max = self.unique_solutions[:, 0].min(), self.unique_solutions[:, 0].mean(), self.unique_solutions[:, 0].max()
-        y_min, y_mean, y_max = self.unique_solutions[:, 1].min(), self.unique_solutions[:, 1].mean(), self.unique_solutions[:, 1].max()
-        # Need to handle cases where solutions are collinear in x or y directions
-        if y_min == y_max:
-            x_range = (x_max - x_min) * 4
-            y_range = x_range * y_pixels / x_pixels
-        elif x_min == x_max:
-            y_range = (y_max - y_min) * 4
-            x_range = y_range * x_pixels / y_pixels
-        else:
-            x_range = (x_max - x_min) * 4
-            y_range = (y_max - y_min) * 4
-
-        return np.linspace(x_mean - x_range / 2, x_mean + x_range / 2, x_pixels), \
-               np.linspace(y_mean - y_range / 2, y_mean + y_range / 2, y_pixels)
-
     def _get_index_of_matching_unique_soln(self, soln: npt.NDArray) -> int:
         match = -1
         for unique_soln_idx in range(self.unique_solutions.shape[0]):
-            if self.points_approx_equal(self.unique_solutions[unique_soln_idx, :], soln):
+            if points_approx_equal(self.unique_solutions[unique_soln_idx, :], soln):
                 match = unique_soln_idx + 1
                 break
         return match
@@ -220,7 +121,7 @@ class Solver(object):
     def _set_pixel_values_if_unset(self, j: int, i: int):
         # Set the values for this pixel if it hasn't been attempted yet (-1)
         if self.solutions_grid[j, i] == -1:
-            solution_pixel, iterations_pixel = self.newton_solve(self.f_lambda, self.j_lambda, np.array([self.x_coords[i], self.y_coords[j]]), self.delta)
+            solution_pixel, iterations_pixel = newton_solve(self.f_lambda, self.j_lambda, np.array([self.x_coords[i], self.y_coords[j]]), self.delta)
             self.iterations_grid[j, i] = iterations_pixel
             if iterations_pixel < cfg.MAX_ITERS:
                 match = self._get_index_of_matching_unique_soln(solution_pixel)
@@ -233,28 +134,123 @@ class Solver(object):
                 self.solutions_grid[j, i] = 0
                 # print(f'WARNING: Maximum iterations were exceeded for a pixel')
 
-run_solver_spec = (
+
+@nb.njit(target_backend=cfg.NUMBA_TARGET)
+def points_approx_equal(p1: npt.NDArray, p2: npt.NDArray) -> bool:
+    return bool(np.linalg.norm(p1 - p2) < 2 * cfg.EPSILON)
+
+
+@nb.njit(target_backend=cfg.NUMBA_TARGET)
+def newton_solve(f_lam: Callable, j_lam: Callable, starting_guess: npt.NDArray, d: float) -> Tuple[
+    npt.NDArray, int]:
+    """Perform Newton's method until either the solution converges or the maximum iterations are exceeded."""
+    current_guess = starting_guess
+    # delta_norm_hist = []
+    delta_norm = np.float_(1000.0)
+    n_iters = 0
+    while delta_norm > cfg.EPSILON and n_iters < cfg.MAX_ITERS:
+        f_num = np.array(f_lam(current_guess[0], current_guess[1], d), dtype=np.float_)
+        j_num = np.array(j_lam(current_guess[0], current_guess[1], d), dtype=np.float_)
+        delta = np.linalg.solve(j_num, -f_num).flatten()
+        current_guess = current_guess + delta
+        delta_norm = np.linalg.norm(delta)
+        # delta_norm_hist.append(delta_norm)
+        n_iters += 1
+
+    return current_guess, n_iters
+
+
+cc = CC('basins_solver')
+
+solution_context_spec = (
     types.List(float64)(float64, float64, float64).as_type(),
     types.List(types.List(float64))(float64, float64, float64).as_type(),
-    int32,
-    int32,
     float64
 )
+@cc.export('find_unique_solutions', solution_context_spec)
+def find_unique_solutions(f_lambda: Callable, j_lambda: Callable, delta: float) -> Optional[npt.NDArray]:
+    """Do a randomised search to find unique solutions, stopping early if new unique solutions stop being found."""
+    unique_solns: List[npt.NDArray] = []
+    x_randoms = cfg.SEARCH_X_LIMS[0] + (cfg.SEARCH_X_LIMS[1] - cfg.SEARCH_X_LIMS[0]) * np.random.random(
+        cfg.MAX_SEARCH_POINTS)
+    y_randoms = cfg.SEARCH_Y_LIMS[0] + (cfg.SEARCH_Y_LIMS[1] - cfg.SEARCH_Y_LIMS[0]) * np.random.random(
+        cfg.MAX_SEARCH_POINTS)
+    # randoms = np.array([x_randoms, y_randoms], dtype=np.float_)
+    point_count = 0
+    converged_search_points_since_last_new_soln = 0
+    for idx in range(x_randoms.shape[0]):
+        point_count += 1
+        soln, iters = newton_solve(f_lambda, j_lambda, np.array([x_randoms[idx], y_randoms[idx]], dtype=np.float64), delta)
+        if iters < cfg.MAX_ITERS:
+            if not unique_solns:
+                unique_solns.append(soln)
+
+            any_equal = False
+            for existing_soln in unique_solns:
+                if points_approx_equal(existing_soln, soln):
+                    any_equal = True
+                    break
+            if any_equal:
+                converged_search_points_since_last_new_soln += 1
+            else:
+                converged_search_points_since_last_new_soln = 0
+                unique_solns.append(soln)
+
+            if converged_search_points_since_last_new_soln >= cfg.MAX_CONVERGED_SEARCH_POINTS_SINCE_LAST_NEW_SOLUTION:
+                # print(f'End search with {len(unique_solns)} unique solutions after reaching the limit of '
+                #       f'{cfg.MAX_CONVERGED_SEARCH_POINTS_SINCE_LAST_NEW_SOLUTION} consecutive converged search points'
+                #       f' since the last new unique solution.')
+                break
+
+    # Temporarily convert the solutions to tuples to sort them (ensures the random search returns the same result each
+    # time for a given system of equations) then put them into one 2D array
+    unique_solns_arr = np.array(sorted([(s[0], s[1]) for s in unique_solns]), np.float_)
+
+    if len(unique_solns) < 2:
+        # print('Found fewer than 2 unique solutions, cannot generate an image')
+        return None
+
+    return unique_solns_arr
+
+@cc.export('get_image_pixel_coords', (int32, int32, float64[:, :]))
+def get_image_pixel_coords(y_pixels: int, x_pixels: int, unique_solutions: npt.NDArray) -> Tuple[npt.NDArray, npt.NDArray]:
+    """Get the coordinates of all the pixels in the image, ensuring that all the known solutions to the system of
+    equations fall safely within the bounds of the image."""
+    # Collapse to a grid of final image's aspect ratio and with some borders around the unique solutions
+    x_min, x_mean, x_max = unique_solutions[:, 0].min(), unique_solutions[:, 0].mean(), unique_solutions[:, 0].max()
+    y_min, y_mean, y_max = unique_solutions[:, 1].min(), unique_solutions[:, 1].mean(), unique_solutions[:, 1].max()
+    # Need to handle cases where solutions are collinear in x or y directions
+    if y_min == y_max:
+        x_range = (x_max - x_min) * 4
+        y_range = x_range * y_pixels / x_pixels
+    elif x_min == x_max:
+        y_range = (y_max - y_min) * 4
+        x_range = y_range * x_pixels / y_pixels
+    else:
+        x_range = (x_max - x_min) * 4
+        y_range = (y_max - y_min) * 4
+
+    return np.linspace(x_mean - x_range / 2, x_mean + x_range / 2, x_pixels), \
+           np.linspace(y_mean - y_range / 2, y_mean + y_range / 2, y_pixels)
 
 
-cc = CC('le_module2')
+solve_grid_spec = (
+    types.List(float64)(float64, float64, float64).as_type(),
+    types.List(types.List(float64))(float64, float64, float64).as_type(),
+    float64[:],
+    float64[:],
+    float64,
+    float64[:, :]
+)
+@cc.export('solve_grid', solve_grid_spec)
+def solve_grid(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions) -> Tuple[npt.NDArray, npt.NDArray]:
+    solver = Solver(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
+    if cfg.ENABLE_QUADTREES:
+        solver.solve_grid_quadtrees()
+    else:
+        solver.solve_grid()
+    return solver.solutions_grid, solver.iterations_grid
 
-
-@cc.export('run_solver', run_solver_spec)
-def run_solver(f_lambda, j_lambda, y_pixels, x_pixels, delta):
-    solver = Solver(f_lambda, j_lambda, y_pixels, x_pixels, delta)
-    # if cfg.ENABLE_QUADTREES:
-    solver.solve_grid_quadtrees()
-    return solver.to_dict()
-
-@cc.export('subtract', 'float32(float32, float32)')
-def sub(x, y):
-    return x-y
 
 if __name__ == "__main__":
     cc.compile()
