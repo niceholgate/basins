@@ -1,28 +1,37 @@
 import src.config as cfg
 import src.utils as utils
-from pydantic import ValidationError
-from src.solver import Solver
-from src.request_types import StillRequest, AnimationRequest
+from src.solving.solve import Solver
 
-import ffmpeg
 import os
-import io
+import sys
 import matplotlib
+from numba.pycc import CC
+from numba import int32, float64, types
+from PIL import Image
 import numpy as np
 import numpy.typing as npt
-import numba as nb
-from PIL import Image
-from typing import List, Union, Dict, Optional
 from pathlib import Path
+from typing import Union, List, Dict
 
-nb.config.DISABLE_JIT = not cfg.ENABLE_JIT
+
+MODULE_NAME = 'imaging_interface'
+cc = CC(MODULE_NAME)
+try:
+    src_dir = Path(os.path.realpath(__file__)).parent
+    build_dir = src_dir.parent/'build'
+    sys.path.append(str(build_dir))
+    import imaging_interface
+    PRECOMPILED = True
+except:
+    PRECOMPILED = False
 
 
+# TODO: remove this from interface
 def save_still(images_dir: Path, solver: Solver, smoothing: bool = True, blending: bool = True, colour_set: Union[int, List[str]] = 0, frame: int = 0):
     """Generate an image with the specified colour scheme, or a range of colour schemes if none specified."""
     pixel_grid = np.zeros((solver.solutions_grid.shape[0], solver.solutions_grid.shape[1], 3), dtype=np.uint8)
-    smoothed_solutions = _smooth_grid(solver.solutions_grid) if smoothing else solver.solutions_grid
-    blending_arrays = _create_blending_arrays(solver.iterations_grid) if blending else []
+    smoothed_solutions = smooth_grid(solver.solutions_grid) if smoothing else solver.solutions_grid
+    blending_arrays = create_blending_arrays(solver.iterations_grid) if blending else []
 
     unique_solns_this_delta = solver.unique_solutions
 
@@ -38,83 +47,24 @@ def save_still(images_dir: Path, solver: Solver, smoothing: bool = True, blendin
         for i in range(solver.solutions_grid.shape[1]):
             if solver.iterations_grid[j, i] < cfg.BLACKOUT_ITERS:
                 pixel_grid[j, i, :] = [int(x*255) for x in rgb_colours[smoothed_solutions[j, i]-1]]
-    blended_pixel_grid = _blend_grid(pixel_grid, blending_arrays, 0) if blending else pixel_grid
+    blended_pixel_grid = blend_grid(pixel_grid, blending_arrays, 0) if blending else pixel_grid
     np.savetxt(images_dir / utils.get_frame_filename(frame, 'txt'), blended_pixel_grid.reshape([blended_pixel_grid.shape[0],
                blended_pixel_grid.shape[1]*blended_pixel_grid.shape[2]]), fmt='%u')
     if cfg.SAVE_PNG_FRAMES:
         Image.fromarray(blended_pixel_grid, 'RGB').save(images_dir / utils.get_frame_filename(frame, 'png'))
 
 
-def png_to_mp4(images_dir: Path, fps: int):
-    """Use ffmpeg (via ffmpeg-python package) to assemble the image frames into a video."""
-    images = [img for img in os.listdir(images_dir) if img.endswith(".png")]
-    image_name_root = images[0].split('-')[0]
-    ffmpeg.input(images_dir/f'{image_name_root}-{cfg.FRAME_COUNT_PADDING.strip("{").strip("}").replace(":","%")}.png',
-                 pattern_type='sequence', framerate=fps)\
-        .output(str(images_dir/f'video{fps}.mp4'))\
-        .global_args('-loglevel', 'error')\
-        .run()
+def smooth_grid_wrapper(solutions: npt.NDArray) -> npt.NDArray:
+    if PRECOMPILED:
+        return imaging_interface.smooth_grid(solutions)
+    return smooth_grid(solutions)
 
 
-def rgb_to_mp4(images_dir: Path, fps: int):
-    images = [img for img in os.listdir(images_dir) if img.endswith(".txt")]
-    rgb_frame_data_path = images_dir / images[0]
-    first_frame = load_rgb_file(rgb_frame_data_path, 3)
-    height, width, channels = first_frame.shape
-
-    process = (
-        ffmpeg
-        .input('pipe:', format='rawvideo', pix_fmt='rgb24', s='{}x{}'.format(width, height), r=fps)
-        .output(str(images_dir/f'video-rgb{fps}.mp4'))
-        .overwrite_output()
-        .run_async(pipe_stdin=True, overwrite_output=True, pipe_stderr=True)
-    )
-    for i, image in enumerate(images):
-        try:
-            rgb_frame_data_path = images_dir / image
-            frame = load_rgb_file(rgb_frame_data_path, 3) if i > 0 else first_frame
-            process.stdin.write(
-                frame.astype(np.uint8).tobytes()
-            )
-        except Exception as e: # should probably be an exception related to process.stdin.write, then after catch RGB load exception
-            for line in io.TextIOWrapper(process.stderr, encoding="utf-8"): # I didn't know how to get the stderr from the process, but this worked for me
-                print(line) # <-- print all the lines in the processes stderr after it has errored
-            process.stdin.close()
-            process.wait()
-            return # cant run anymore so end the for loop and the function execution
-    out, err = process.communicate()
-
-
-def load_rgb_file(rgb_frame_data_path: Path, output_array_dim: int = 2) -> np.ndarray:
-    array_2d = np.genfromtxt(rgb_frame_data_path, dtype=np.int_)
-    if output_array_dim == 3:
-        height, width_x_channels = array_2d.shape
-        return array_2d.reshape([height, int(width_x_channels/3), 3])
-    return array_2d
-
-
-def load_run_data(uuid: str) -> Optional[Dict]:
-    directory = utils.get_images_dir(uuid)
-    logs_files = list(directory.glob(f'*.log'))
-    if logs_files:
-        file_path = logs_files[0]
-        with open(file_path, 'r') as log:
-            first_line = log.readline().strip('\n')
-            json_str = first_line.split(' - ')[1]
-
-            try:
-                if file_path.name.startswith('animation'):
-                    return AnimationRequest.model_validate_json(json_str).model_dump()
-                else:
-                    return StillRequest.model_validate_json(json_str).model_dump()
-            except ValidationError as e:
-                return {'message': 'error parsing!'}
-    return None
-
-
-
-@nb.njit(target_backend=cfg.NUMBA_TARGET)
-def _smooth_grid(solutions: npt.NDArray) -> npt.NDArray:
+smooth_grid_spec = (
+    int32[:, :]
+)
+@cc.export('smooth_grid', smooth_grid_spec)
+def smooth_grid(solutions: npt.NDArray) -> npt.NDArray:
     """Smooth a grid of solutions (happens before colouration).
     Just a crude algo to slightly reduce noise in very unstable areas."""
     smoothed_count = 0
@@ -149,8 +99,19 @@ def _smooth_grid(solutions: npt.NDArray) -> npt.NDArray:
     return smoothed_solutions
 
 
-@nb.njit(target_backend=cfg.NUMBA_TARGET)
-def _blend_grid(pixel_grid: npt.NDArray, blending_arrays: List[npt.NDArray], decay_fac_idx: int):
+def blend_grid_wrapper(pixel_grid: npt.NDArray, blending_arrays: List[npt.NDArray], decay_fac_idx: int) -> npt.NDArray:
+    if PRECOMPILED:
+        return imaging_interface.blend_grid(pixel_grid, blending_arrays, decay_fac_idx)
+    return blend_grid(pixel_grid, blending_arrays, decay_fac_idx)
+
+
+blend_grid_spec = (
+    float64[:, :, :],
+    types.List(float64[:, :]),
+    int32
+)
+@cc.export('blend_grid', blend_grid_spec)
+def blend_grid(pixel_grid: npt.NDArray, blending_arrays: List[npt.NDArray], decay_fac_idx: int) -> npt.NDArray:
     """Blend a grid of pixels (happens after colouration). Blends more strongly where the iterations count is high,
     as this is strongly associated with more noise."""
     # TODO: a brightness gradient within large basins would look nice i.e. each colour region gets darker towards the middle (high distance from any other solution)
@@ -167,20 +128,43 @@ def _blend_grid(pixel_grid: npt.NDArray, blending_arrays: List[npt.NDArray], dec
     return blended_grid.astype(np.uint8)
 
 
-@nb.njit(target_backend=cfg.NUMBA_TARGET)
-def _create_blending_arrays(iterations: npt.NDArray) -> List[npt.NDArray]:
+def create_blending_arrays_wrapper(iterations: npt.NDArray) -> List[npt.NDArray]:
+    if PRECOMPILED:
+        return imaging_interface.create_blending_arrays(iterations)
+    return create_blending_arrays(iterations)
+
+
+create_blending_arrays_spec = (
+    int32[:, :]
+)
+@cc.export('create_blending_arrays', create_blending_arrays_spec)
+def create_blending_arrays(iterations: npt.NDArray) -> List[npt.NDArray]:
     cbrt_iterations = np.cbrt(iterations)
     blending_arrays = []
     # Need to iterate through the arrays the same way as they are created
     # TODO: any loss of performance by just making the arrays in the blend_grid loops?
     for j in range(iterations.shape[0]):
         for i in range(iterations.shape[1]):
-            blending_arrays.append(_create_blending_array(j, i, iterations[j, i], cbrt_iterations[j, i]))
+            blending_arrays.append(create_blending_array(j, i, iterations[j, i], cbrt_iterations[j, i]))
     return blending_arrays
 
 
-@nb.njit(target_backend=cfg.NUMBA_TARGET)
-def _create_blending_array(y_pixels: int, x_pixels: int, j: int, i: int, iterations: float, cbrt_iterations: float) -> npt.NDArray:
+def create_blending_array_wrapper(y_pixels: int, x_pixels: int, j: int, i: int, iterations: float, cbrt_iterations: float) -> npt.NDArray:
+    if PRECOMPILED:
+        return imaging_interface.create_blending_array(y_pixels, x_pixels, j, i, iterations, cbrt_iterations)
+    return create_blending_array(y_pixels, x_pixels, j, i, iterations, cbrt_iterations)
+
+
+create_blending_array_spec = (
+    int32,
+    int32,
+    int32,
+    int32,
+    float64,
+    float64
+)
+@cc.export('create_blending_array', create_blending_array_spec)
+def create_blending_array(y_pixels: int, x_pixels: int, j: int, i: int, iterations: float, cbrt_iterations: float) -> npt.NDArray:
     half_width = int(cbrt_iterations) if iterations > 8 else 0
     j_range = range(max(0, j - half_width), min(y_pixels, j + half_width + 1))
     i_range = range(max(0, i - half_width), min(x_pixels, i + half_width + 1))
@@ -198,3 +182,15 @@ def _create_blending_array(y_pixels: int, x_pixels: int, j: int, i: int, iterati
     # Normalize the weights
     weights[:, 2:] = weights[:, 2:] / weights[:, 2:].sum(axis=0)
     return weights
+
+
+# TODO: one script that recreates all of the precompiled modules
+compiled_module_file_exists = any([x for x in cfg.BUILD_DIR.glob(f'{MODULE_NAME}*') if x.is_file()])
+if not compiled_module_file_exists:
+    cc.compile()
+    src_dir = Path(os.path.realpath(__file__)).parent
+    compiled_module_file = [x for x in src_dir.glob(f'{MODULE_NAME}*') if x.is_file()][0]
+    utils.mkdir_if_nonexistent(cfg.BUILD_DIR)
+    file_dest = cfg.BUILD_DIR / compiled_module_file.name
+    file_dest.unlink(missing_ok=True)
+    compiled_module_file.rename(file_dest)

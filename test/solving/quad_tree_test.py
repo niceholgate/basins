@@ -1,6 +1,5 @@
 # import pytest
-from typing import Optional
-from src.quad_tree import QuadTree
+from src.solving.quad_tree import QuadTree
 from typing import List
 
 

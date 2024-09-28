@@ -6,7 +6,6 @@ from numba.experimental import jitclass
 from numba import optional, types, boolean
 
 nb.config.DISABLE_JIT = not cfg.ENABLE_JIT
-nb.config.SHOW_HELP = True
 
 
 node_type = nb.deferred_type()

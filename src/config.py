@@ -16,3 +16,7 @@ DEFAULT_COLOURS = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple
 FRAME_COUNT_PADDING = '{:06d}'
 
 NUMBA_TARGET = 'CPU' # setting cuda is not doing anything yet
+
+import os
+from pathlib import Path
+BUILD_DIR = Path(os.path.realpath(__file__)).parent/'build'
