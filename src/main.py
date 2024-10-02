@@ -103,6 +103,23 @@ def load_run_data(uuid: str, response: Response):
         return {'message': 'Input errors: ' + str(err)}
 
 
+@app.post("/create/video/{uuid}", status_code=202)
+async def create_video_file(uuid: str, response: Response, background_tasks: BackgroundTasks):
+    try:
+        params = types.StillParameters.from_request(request)
+        this_uuid = str(uuid.uuid4())
+
+        utils.logger_setup(logger, this_uuid, 'still')
+        logger.debug(request.model_dump_json())
+
+        background_tasks.add_task(
+            basins.create_still,
+            this_uuid, params)
+        return {'message': 'Creating an image',
+                'id': this_uuid}
+    except ValidationError as e:
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return {'message': 'Input errors: ' + str({error['loc'][0]: error['msg'] for error in e.errors()})}
 
 # @app.get("/video")
 # async def video_endpoint(range: str = Header(None)):
@@ -120,6 +137,7 @@ def load_run_data(uuid: str, response: Response):
 #             'Accept-Ranges': 'bytes'
 #         }
 #         return Response(data, status_code=206, headers=headers, media_type="video/mp4")
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

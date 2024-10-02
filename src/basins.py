@@ -63,5 +63,7 @@ def create_still(uuid: str, params: types.StillParameters):
     utils.mkdir_if_nonexistent(images_dir)
     solver = Solver(params.f_lambda, params.j_lambda, params.y_pixels, params.x_pixels, 0)
 
-    produce_image_timed(solver, images_dir, params.colour_set, 0)
+    timed = produce_image_timed(solver, images_dir, params.colour_set, 0)
+    logger.info(f'numba acceleration={not cfg.DISABLE_JIT}')
+    logger.info(f'Time taken: {timed} seconds')
 

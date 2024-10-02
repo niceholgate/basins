@@ -113,6 +113,14 @@ function App() {
         setFrame(1);
     }
 
+    const handleCreateVideoClick = async () => {
+        fetchPost(`${baseUrl}/create/still`, JSON.stringify(request))
+    }
+
+    const handleSaveVideoClick = async () => {
+
+    }
+
     function checkArray(rgbArray: number[][]) {
         if (rgbArray) {
             if (rgbArray.length > 0) {
@@ -192,6 +200,8 @@ function App() {
                 <Box alignItems='center' borderWidth='3px' borderRadius='lg'>
                     {checkArray(frameCache[frame])}
                 </Box>
+                <Button type='submit' colorScheme='green' onClick={handleCreateVideoClick}>Create Video</Button>
+                <Button type='submit' colorScheme='green' onClick={handleSaveVideoClick}>Save Video</Button>
             </div>
         </ChakraProvider>
     );
