@@ -33,6 +33,8 @@ def save_still(images_dir: Path, solutions_grid: npt.NDArray, iterations_grid: n
             colour_set.append(cfg.DEFAULT_COLOURS[idx % len(cfg.DEFAULT_COLOURS)])
             idx += 1
     rgb_colours = [matplotlib.colors.to_rgb(colour) for colour in colour_set]
+    print(colour_set)
+    print(unique_solutions)
 
     for j in range(solutions_grid.shape[0]):
         for i in range(solutions_grid.shape[1]):
@@ -57,7 +59,7 @@ def create_blending_arrays(iterations: npt.NDArray) -> List[npt.NDArray]:
 
 def png_to_mp4(images_dir: Path, fps: int):
     """Use ffmpeg (via ffmpeg-python package) to assemble the image frames into a video."""
-    images = [img for img in os.listdir(images_dir) if img.endswith(".png")]
+    images = sorted([img for img in os.listdir(images_dir) if img.endswith(".png")])
     image_name_root = images[0].split('-')[0]
     ffmpeg.input(images_dir/f'{image_name_root}-{cfg.FRAME_COUNT_PADDING.strip("{").strip("}").replace(":","%")}.png',
                  pattern_type='sequence', framerate=fps)\
@@ -67,7 +69,7 @@ def png_to_mp4(images_dir: Path, fps: int):
 
 
 def rgb_to_mp4(images_dir: Path, fps: int):
-    images = [img for img in os.listdir(images_dir) if img.endswith(".txt")]
+    images = sorted([img for img in os.listdir(images_dir) if img.endswith(".txt")])
     rgb_frame_data_path = images_dir / images[0]
     first_frame = load_rgb_file(rgb_frame_data_path, 3)
     height, width, channels = first_frame.shape

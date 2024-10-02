@@ -172,7 +172,7 @@ def create_animation_inner(uuid: str, params: types.AnimationParameters):
                   f' to {unique_solutions.shape[0]} for delta={delta}')
             exit(0)
 
-        print(f'Now solving the grid for frame {i+1} of {len(params.deltas)} (delta={delta})...')
+        print(f'Now solving the grid for frame {i+1} of {len(params.deltas)} (delta={delta}) ({unique_solutions.shape[0]} unique solutions)...')
         total_duration += produce_image_timed(params.f_lambda, params.j_lambda, delta, images_dir, params.colour_set, unique_solutions, x_coords, y_coords, i)
         utils.print_time_remaining_estimate(i, len(params.deltas), total_duration)
 

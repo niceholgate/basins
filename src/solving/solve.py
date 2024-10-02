@@ -5,7 +5,7 @@ import numpy as np
 import numpy.typing as npt
 import numba as nb
 from numba.experimental import jitclass
-from numba import int32, float64, types
+from numba import int64, float64, types
 from typing import Tuple, Callable, Optional
 
 nb.config.DISABLE_JIT = not cfg.ENABLE_JIT
@@ -54,8 +54,8 @@ solution_context_spec = (
     ('j_lambda', types.List(types.List(float64))(float64, float64, float64).as_type()),
     ('x_coords', float64[:]),
     ('y_coords', float64[:]),
-    ('solutions_grid', int32[:, :]),
-    ('iterations_grid', int32[:, :]),
+    ('solutions_grid', int64[:, :]),
+    ('iterations_grid', int64[:, :]),
     ('delta', float64),
     ('unique_solutions', float64[:, :])
 )
