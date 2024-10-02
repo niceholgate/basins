@@ -9,7 +9,7 @@ import numpy as np
 delta = 1.0
 x_pixels = 67
 y_pixels = 89
-unique_solutions = interface.find_unique_solutions_wrapper(shared.LAMBDA_F, shared.LAMBDA_J, delta)
+unique_solutions = interface.find_unique_solutions(shared.LAMBDA_F, shared.LAMBDA_J, delta)
 x_coords, y_coords = interface.get_image_pixel_coords(y_pixels, x_pixels, unique_solutions)
 
 

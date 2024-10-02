@@ -24,8 +24,9 @@ except:
 
 
 def find_unique_solutions_wrapper(f_lambda: Callable, j_lambda: Callable, delta: float) -> Optional[npt.NDArray]:
-    if PRECOMPILED:
+    if PRECOMPILED and cfg.ENABLE_AOT:
         return solving_interface.find_unique_solutions(f_lambda, j_lambda, delta)
+    print('Used pythonic find_unique_solutions')
     return find_unique_solutions(f_lambda, j_lambda, delta)
 
 
@@ -81,8 +82,9 @@ def find_unique_solutions(f_lambda: Callable, j_lambda: Callable, delta: float) 
 
 
 def get_image_pixel_coords_wrapper(y_pixels: int, x_pixels: int, unique_solutions: npt.NDArray) -> Tuple[npt.NDArray, npt.NDArray]:
-    if PRECOMPILED:
+    if PRECOMPILED and cfg.ENABLE_AOT:
         return solving_interface.get_image_pixel_coords(y_pixels, x_pixels, unique_solutions)
+    print('Used pythonic get_image_pixel_coords')
     return get_image_pixel_coords(y_pixels, x_pixels, unique_solutions)
 
 
@@ -109,8 +111,9 @@ def get_image_pixel_coords(y_pixels: int, x_pixels: int, unique_solutions: npt.N
 
 
 def solve_grid_wrapper(f_lambda: Callable, j_lambda: Callable, x_coords: npt.NDArray, y_coords: npt.NDArray, delta: float, unique_solutions: npt.NDArray) -> Tuple[npt.NDArray, npt.NDArray]:
-    if PRECOMPILED:
+    if PRECOMPILED and cfg.ENABLE_AOT:
         return solving_interface.solve_grid(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
+    print('Used pythonic solve_grid')
     return solve_grid(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
 
 
@@ -130,8 +133,9 @@ def solve_grid(f_lambda: Callable, j_lambda: Callable, x_coords: npt.NDArray, y_
 
 
 def solve_grid_quadtrees_wrapper(f_lambda: Callable, j_lambda: Callable, x_coords: npt.NDArray, y_coords: npt.NDArray, delta: float, unique_solutions: npt.NDArray) -> Tuple[npt.NDArray, npt.NDArray]:
-    if PRECOMPILED:
+    if PRECOMPILED and cfg.ENABLE_AOT:
         return solving_interface.solve_grid_quadtrees(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
+    print('Used pythonic solve_grid_quadtrees')
     return solve_grid_quadtrees(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
 
 
@@ -144,7 +148,10 @@ def solve_grid_quadtrees(f_lambda: Callable, j_lambda: Callable, x_coords: npt.N
 
 # TODO: one script that recreates all of the precompiled modules
 compiled_module_file_exists = any([x for x in cfg.BUILD_DIR.glob(f'{MODULE_NAME}*') if x.is_file()])
-if not compiled_module_file_exists:
+if compiled_module_file_exists:
+    print(f'Using existing numba Ahead-Of-Time compiled files for module: {MODULE_NAME}')
+else:
+    print(f'Performing Ahead-Of-Time numba compilation for module: {MODULE_NAME}')
     cc.compile()
     src_dir = Path(os.path.realpath(__file__)).parent
     compiled_module_file = [x for x in src_dir.glob(f'{MODULE_NAME}*') if x.is_file()][0]

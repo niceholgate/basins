@@ -21,7 +21,7 @@ class StillRequest(BaseModel):
 
 
 class AnimationRequest(StillRequest):
-    delta: int
+    delta: float
     frames: int
     fps: int
 

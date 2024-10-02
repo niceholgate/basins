@@ -1,7 +1,6 @@
 import src.api.requests as types
 import src.imaging as imaging
 import src.utils as utils
-import src.solving.solve as solve
 import src.solving.interface as solve_interface
 import src.config as cfg
 
@@ -125,15 +124,12 @@ def load_run_data(uuid: str, response: Response):
 
 
 @utils.timed
-def produce_image_timed(f_lambda, j_lambda, y_pixels, x_pixels, delta, images_dir, colour_set, i):
-    unique_solutions = solve_interface.find_unique_solutions(f_lambda, j_lambda, delta)
-    x_coords, y_coords = solve_interface.get_image_pixel_coords(y_pixels, x_pixels, unique_solutions)
-    solver = solve.create_solver(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
+def produce_image_timed(f_lambda, j_lambda, delta, images_dir, colour_set, unique_solutions, x_coords, y_coords, i):
     if cfg.ENABLE_QUADTREES:
-        solver.solve_grid_quadtrees()
+        solutions_grid, iterations_grid = solve_interface.solve_grid_quadtrees_wrapper(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
     else:
-        solver.solve_grid()
-    imaging.interface.save_still(images_dir, solver, smoothing=False, blending=False, colour_set=colour_set, frame=i)
+        solutions_grid, iterations_grid = solve_interface.solve_grid_wrapper(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
+    imaging.image.save_still(images_dir, solutions_grid, iterations_grid, unique_solutions, smoothing=False, blending=False, colour_set=colour_set, frame=i)
 
 
 # TODO:
@@ -155,28 +151,36 @@ def create_animation_inner(uuid: str, params: types.AnimationParameters):
 
     images_dir = utils.get_images_dir(uuid)
     utils.mkdir_if_nonexistent(images_dir)
-    unique_solutions = solve_interface.find_unique_solutions(params.f_lambda, params.j_lambda, params.deltas[0])
-    x_coords, y_coords = solve_interface.get_image_pixel_coords(params.y_pixels, params.x_pixels, unique_solutions)
-    solvers = [solve.create_solver(params.f_lambda, params.j_lambda, y_coords, x_coords, params.deltas[0], unique_solutions)]
-    expected_number_of_solns = solvers[0].unique_solutions.shape[0]
+
+    unique_solutions = solve_interface.find_unique_solutions_wrapper(params.f_lambda, params.j_lambda, params.deltas[0])
+    expected_number_of_solns = unique_solutions.shape[0]
+    x_coords, y_coords = solve_interface.get_image_pixel_coords_wrapper(params.y_pixels, params.x_pixels, unique_solutions)
+
+    i = 0
+    total_duration = produce_image_timed(params.f_lambda, params.j_lambda, params.deltas[0],
+                                          images_dir, params.colour_set, unique_solutions, x_coords, y_coords, 0)
+
 
     # Assume that if the same number of solutions is found each time, the sorted solutions will
     # correspond to each other in sequence between different deltas
     for delta in params.deltas[1:]:
-        solvers.append(solve.create_solver(params.f_lambda, params.j_lambda, y_coords, x_coords, delta, unique_solutions))
-        if solvers[-1].unique_solutions.shape[0] > expected_number_of_solns:
+        i += 1
+        unique_solutions = solve_interface.\
+            find_unique_solutions_wrapper(params.f_lambda, params.j_lambda, delta)
+        if unique_solutions.shape[0] > expected_number_of_solns:
             print(f'Terminating because number of solutions increased from {expected_number_of_solns}'
-                  f' to {solvers[-1].unique_solutions.shape[0]} for delta={delta}')
+                  f' to {unique_solutions.shape[0]} for delta={delta}')
             exit(0)
 
-    total_duration = 0.0
-    for i, solver in enumerate(solvers):
-        print(f'Now solving the grid for frame {i + 1} of {len(solvers)} (delta={solver.delta})...')
-        total_duration += produce_image_timed(params.f_lambda, params.j_lambda, params.y_pixels, params.x_pixels, solver.delta, images_dir, params.colour_set, i)
+        print(f'Now solving the grid for frame {i+1} of {len(params.deltas)} (delta={delta})...')
+        total_duration += produce_image_timed(params.f_lambda, params.j_lambda, delta, images_dir, params.colour_set, unique_solutions, x_coords, y_coords, i)
         utils.print_time_remaining_estimate(i, len(params.deltas), total_duration)
-    if cfg.SAVE_PNG_FRAMES:
-        imaging.image.png_to_mp4(images_dir, params.fps)
+
+    # if cfg.SAVE_PNG_FRAMES:
+    #     imaging.image.png_to_mp4(images_dir, params.fps)
     imaging.image.rgb_to_mp4(images_dir, params.fps)
+    logger.debug(f'ENABLE_AOT={cfg.ENABLE_AOT}, ENABLE_QUADTREES={cfg.ENABLE_QUADTREES}')
+    logger.debug(f'Generation time: {total_duration} s')
 
 
 def create_still_inner(uuid: str, params: types.StillParameters):
@@ -185,8 +189,11 @@ def create_still_inner(uuid: str, params: types.StillParameters):
 
     images_dir = utils.get_images_dir(uuid)
     utils.mkdir_if_nonexistent(images_dir)
-    generation_time = produce_image_timed(params.f_lambda, params.j_lambda, params.y_pixels, params.x_pixels, 0.0, images_dir, params.colour_set, 0)
+    unique_solutions = solve_interface.find_unique_solutions_wrapper(params.f_lambda, params.j_lambda, 0)
+    x_coords, y_coords = solve_interface.get_image_pixel_coords_wrapper(params.y_pixels, params.x_pixels, unique_solutions)
+    generation_time = produce_image_timed(params.f_lambda, params.j_lambda, 0.0, images_dir, params.colour_set, unique_solutions, x_coords, y_coords, 0)
 
+    logger.debug(f'ENABLE_AOT={cfg.ENABLE_AOT}, ENABLE_QUADTREES={cfg.ENABLE_QUADTREES}')
     logger.debug(f'Generation time: {generation_time} s')
 
 

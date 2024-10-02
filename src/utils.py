@@ -34,8 +34,9 @@ def timed(func: Callable) -> Callable:
 
 def print_time_remaining_estimate(i: int, N: int, duration_so_far: float) -> None:
     if i != N - 1:
-        mean_duration = '{:.2f}'.format(duration_so_far / (i + 1))
-        est_mins_remaining = '{:.2f}'.format(duration_so_far / (i + 1) * (N - i - 1) / 60)
+        mean_time_per_frame = duration_so_far / (i + 1)
+        mean_duration = '{:.2f}'.format(mean_time_per_frame)
+        est_mins_remaining = '{:.2f}'.format(mean_time_per_frame * (N - i - 1) / 60)
         print(f'Mean frame generation time is {mean_duration} seconds;'
               f' estimate {est_mins_remaining} minutes remaining for video generation')
 

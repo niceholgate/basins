@@ -7,11 +7,52 @@ import ffmpeg
 import os
 import io
 import numpy as np
+import numpy.typing as npt
 import numba as nb
 from typing import Dict, Optional
 from pathlib import Path
+import matplotlib
+from PIL import Image
+from typing import Union, List
+
+import src.imaging.interface as imaging_interface
 
 nb.config.DISABLE_JIT = not cfg.ENABLE_JIT
+
+
+def save_still(images_dir: Path, solutions_grid: npt.NDArray, iterations_grid: npt.NDArray, unique_solutions: npt.NDArray, smoothing: bool = True, blending: bool = True, colour_set: Union[int, List[str]] = 0, frame: int = 0):
+    """Generate an image with the specified colour scheme, or a range of colour schemes if none specified."""
+    pixel_grid = np.zeros((solutions_grid.shape[0], solutions_grid.shape[1], 3), dtype=np.uint8)
+    smoothed_solutions = imaging_interface.smooth_grid_wrapper(solutions_grid) if smoothing else solutions_grid
+    blending_arrays = create_blending_arrays(iterations_grid) if blending else []
+
+    if not (isinstance(colour_set, list) and len(colour_set) == unique_solutions.shape[0]):
+        idx = colour_set if isinstance(colour_set, int) else 0
+        colour_set = []
+        while len(colour_set) < unique_solutions.shape[0]:
+            colour_set.append(cfg.DEFAULT_COLOURS[idx % len(cfg.DEFAULT_COLOURS)])
+            idx += 1
+    rgb_colours = [matplotlib.colors.to_rgb(colour) for colour in colour_set]
+
+    for j in range(solutions_grid.shape[0]):
+        for i in range(solutions_grid.shape[1]):
+            if iterations_grid[j, i] < cfg.BLACKOUT_ITERS:
+                pixel_grid[j, i, :] = [int(x*255) for x in rgb_colours[smoothed_solutions[j, i]-1]]
+    blended_pixel_grid = imaging_interface.blend_grid_wrapper(pixel_grid, blending_arrays, 0) if blending else pixel_grid
+    np.savetxt(images_dir / utils.get_frame_filename(frame, 'txt'), blended_pixel_grid.reshape([blended_pixel_grid.shape[0],
+               blended_pixel_grid.shape[1]*blended_pixel_grid.shape[2]]), fmt='%u')
+    if cfg.SAVE_PNG_FRAMES:
+        Image.fromarray(blended_pixel_grid, 'RGB').save(images_dir / utils.get_frame_filename(frame, 'png'))
+
+
+def create_blending_arrays(iterations: npt.NDArray) -> List[npt.NDArray]:
+    cbrt_iterations = np.cbrt(iterations)
+    blending_arrays = []
+    # Need to iterate through the arrays the same way as they are created
+    for j in range(iterations.shape[0]):
+        for i in range(iterations.shape[1]):
+            blending_arrays.append(imaging_interface.create_blending_array_wrapper(j, i, iterations[j, i], cbrt_iterations[j, i]))
+    return blending_arrays
 
 
 def png_to_mp4(images_dir: Path, fps: int):
