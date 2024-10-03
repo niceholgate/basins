@@ -20,6 +20,25 @@ import src.imaging.interface as imaging_interface
 nb.config.DISABLE_JIT = not cfg.ENABLE_JIT
 
 
+# #{
+#     "x_pixels": 600,
+#     "y_pixels": 400,
+#     "expressions": ["y**2*exp(-0.1*x**2)+2*x*y+2*x**2-4-0.6*sin(15*(x+d))", "y-7*x**2+3.2"],
+#     "colour_set": 3,
+#     "delta": 0.418879,
+#     "frames": 10,
+#     "fps": 20
+# }
+# {
+#     "x_pixels": 300,
+#     "y_pixels": 200,
+#     "expressions": ["y**2*exp(-0.1*x**2)+2*x*y+2*x**2-4-0.5*sin(15*(x+d))", "y-10*x**2+3+d"],
+#     "colour_set": 3,
+#     "delta": 0.418879,
+#     "frames": 120,
+#     "fps": 30
+# }
+# flickering
 def save_still(images_dir: Path, solutions_grid: npt.NDArray, iterations_grid: npt.NDArray, unique_solutions: npt.NDArray, smoothing: bool = True, blending: bool = True, colour_set: Union[int, List[str]] = 0, frame: int = 0):
     """Generate an image with the specified colour scheme, or a range of colour schemes if none specified."""
     pixel_grid = np.zeros((solutions_grid.shape[0], solutions_grid.shape[1], 3), dtype=np.uint8)
@@ -28,13 +47,22 @@ def save_still(images_dir: Path, solutions_grid: npt.NDArray, iterations_grid: n
 
     if not (isinstance(colour_set, list) and len(colour_set) == unique_solutions.shape[0]):
         idx = colour_set if isinstance(colour_set, int) else 0
+
+        # hacky
+        # if unique_solutions.shape[0] < 5:
+        #     idx += (5-unique_solutions.shape[0])
+
         colour_set = []
         while len(colour_set) < unique_solutions.shape[0]:
             colour_set.append(cfg.DEFAULT_COLOURS[idx % len(cfg.DEFAULT_COLOURS)])
             idx += 1
+
+    # hacky
+    # colour_set = ['tab:cyan' if c == 'tab:red' else c for c in colour_set]
+
     rgb_colours = [matplotlib.colors.to_rgb(colour) for colour in colour_set]
-    print(colour_set)
-    print(unique_solutions)
+    # print(colour_set)
+    # print(unique_solutions)
 
     for j in range(solutions_grid.shape[0]):
         for i in range(solutions_grid.shape[1]):
