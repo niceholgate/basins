@@ -88,8 +88,8 @@ def blend_grid(pixel_grid: npt.NDArray, blending_arrays: List[npt.NDArray], deca
     for j in range(blended_grid.shape[0]):
         for i in range(blended_grid.shape[1]):
             blending_array = blending_arrays[next_arr_idx]
-            j_coords = blending_array[:, 0].astype(np.int_)
-            i_coords = blending_array[:, 1].astype(np.int_)
+            j_coords = blending_array[:, 0].astype(np.int64)
+            i_coords = blending_array[:, 1].astype(np.int64)
             for point in range(blending_array.shape[0]):
                 blended_grid[j, i, :] += pixel_grid[j_coords[point], i_coords[point], :] * blending_array[point, decay_fac_idx + 2]
             next_arr_idx += 1
@@ -117,7 +117,7 @@ def create_blending_array(y_pixels: int, x_pixels: int, j: int, i: int, iteratio
     j_range = range(max(0, j - half_width), min(y_pixels, j + half_width + 1))
     i_range = range(max(0, i - half_width), min(x_pixels, i + half_width + 1))
     n_rows = len(j_range) * len(i_range)
-    weights = np.zeros((n_rows, 3), dtype=np.float_)
+    weights = np.zeros((n_rows, 3), dtype=np.float64)
     row = 0
     for j_neighbour in j_range:
         for i_neighbour in i_range:
@@ -134,14 +134,16 @@ def create_blending_array(y_pixels: int, x_pixels: int, j: int, i: int, iteratio
 
 # TODO: one script that recreates all of the precompiled modules
 compiled_module_file_exists = any([x for x in cfg.BUILD_DIR.glob(f'{MODULE_NAME}*') if x.is_file()])
-if compiled_module_file_exists:
-    print(f'Using existing numba Ahead-Of-Time compiled files for module: {MODULE_NAME}')
-else:
-    print(f'Performing Ahead-Of-Time numba compilation for module: {MODULE_NAME}')
-    cc.compile()
-    src_dir = Path(os.path.realpath(__file__)).parent
-    compiled_module_file = [x for x in src_dir.glob(f'{MODULE_NAME}*') if x.is_file()][0]
-    utils.mkdir_if_nonexistent(cfg.BUILD_DIR)
-    file_dest = cfg.BUILD_DIR / compiled_module_file.name
-    file_dest.unlink(missing_ok=True)
-    compiled_module_file.rename(file_dest)
+if cfg.ENABLE_AOT:
+    if compiled_module_file_exists:
+        print(f'Using existing numba Ahead-Of-Time compiled files for module: {MODULE_NAME}')
+    else:
+        print(f'Performing Ahead-Of-Time numba compilation for module: {MODULE_NAME}')
+        cc.compile()
+        src_dir = Path(os.path.realpath(__file__)).parent
+        compiled_module_file = [x for x in src_dir.glob(f'{MODULE_NAME}*') if x.is_file()][0]
+        utils.mkdir_if_nonexistent(cfg.BUILD_DIR)
+        file_dest = cfg.BUILD_DIR / compiled_module_file.name
+        file_dest.unlink(missing_ok=True)
+        compiled_module_file.rename(file_dest)
+        PRECOMPILED = True

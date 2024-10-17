@@ -37,13 +37,24 @@ find_unique_solutions_spec = (
 )
 @cc.export('find_unique_solutions', find_unique_solutions_spec)
 def find_unique_solutions(f_lambda: Callable, j_lambda: Callable, delta: float) -> Optional[npt.NDArray]:
+
+    # Why is this only finding 3 unique solutions most of hte time? Need to add request override of the search lims?
+    # First frame unique solutions inform the random search bounds for subsequent frames?
+    # {
+    #     "x_pixels": 100,
+    #     "y_pixels": 100,
+    #     "expressions": ["y**2+x**2+sin(5*x+d)/3-3", "y-2*x**2-x**3/2-cos(5*x+d)/5+3"],
+    #     "colour_set": 5,
+    #     "delta": 6.283185307,
+    #     "frames": 240,
+    #     "fps": 30
+    # }
+
     """Do a randomised search to find unique solutions, stopping early if new unique solutions stop being found."""
     unique_solns: List[npt.NDArray] = []
-    x_randoms = cfg.SEARCH_X_LIMS[0] + (cfg.SEARCH_X_LIMS[1] - cfg.SEARCH_X_LIMS[0]) * np.random.random(
-        cfg.MAX_SEARCH_POINTS)
-    y_randoms = cfg.SEARCH_Y_LIMS[0] + (cfg.SEARCH_Y_LIMS[1] - cfg.SEARCH_Y_LIMS[0]) * np.random.random(
-        cfg.MAX_SEARCH_POINTS)
-    # randoms = np.array([x_randoms, y_randoms], dtype=np.float_)
+    x_randoms = cfg.SEARCH_X_LIMS[0] + (cfg.SEARCH_X_LIMS[1] - cfg.SEARCH_X_LIMS[0]) * np.random.random(cfg.MAX_SEARCH_POINTS)
+    y_randoms = cfg.SEARCH_Y_LIMS[0] + (cfg.SEARCH_Y_LIMS[1] - cfg.SEARCH_Y_LIMS[0]) * np.random.random(cfg.MAX_SEARCH_POINTS)
+    # randoms = np.array([x_randoms, y_randoms], dtype=np.float64)
     point_count = 0
     converged_search_points_since_last_new_soln = 0
     for idx in range(x_randoms.shape[0]):
@@ -72,7 +83,7 @@ def find_unique_solutions(f_lambda: Callable, j_lambda: Callable, delta: float) 
 
     # Temporarily convert the solutions to tuples to sort them (ensures the random search returns the same result each
     # time for a given system of equations) then put them into one 2D array
-    unique_solns_arr = np.array(sorted([(s[0], s[1]) for s in unique_solns]), np.float_)
+    unique_solns_arr = np.array(sorted([(s[0], s[1]) for s in unique_solns]), np.float64)
 
     if len(unique_solns) < 2:
         # print('Found fewer than 2 unique solutions, cannot generate an image')
@@ -148,14 +159,17 @@ def solve_grid_quadtrees(f_lambda: Callable, j_lambda: Callable, x_coords: npt.N
 
 # TODO: one script that recreates all of the precompiled modules
 compiled_module_file_exists = any([x for x in cfg.BUILD_DIR.glob(f'{MODULE_NAME}*') if x.is_file()])
-if compiled_module_file_exists:
-    print(f'Using existing numba Ahead-Of-Time compiled files for module: {MODULE_NAME}')
-else:
-    print(f'Performing Ahead-Of-Time numba compilation for module: {MODULE_NAME}')
-    cc.compile()
-    src_dir = Path(os.path.realpath(__file__)).parent
-    compiled_module_file = [x for x in src_dir.glob(f'{MODULE_NAME}*') if x.is_file()][0]
-    utils.mkdir_if_nonexistent(cfg.BUILD_DIR)
-    file_dest = cfg.BUILD_DIR / compiled_module_file.name
-    file_dest.unlink(missing_ok=True)
-    compiled_module_file.rename(file_dest)
+if cfg.ENABLE_AOT:
+    if compiled_module_file_exists:
+        print(f'Using existing numba Ahead-Of-Time compiled files for module: {MODULE_NAME}')
+    else:
+        print(f'Performing Ahead-Of-Time numba compilation for module: {MODULE_NAME}')
+        cc.compile()
+        src_dir = Path(os.path.realpath(__file__)).parent
+        compiled_module_file = [x for x in src_dir.glob(f'{MODULE_NAME}*') if x.is_file()][0]
+        utils.mkdir_if_nonexistent(cfg.BUILD_DIR)
+        file_dest = cfg.BUILD_DIR / compiled_module_file.name
+        file_dest.unlink(missing_ok=True)
+        compiled_module_file.rename(file_dest)
+        PRECOMPILED = True
+

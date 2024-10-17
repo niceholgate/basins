@@ -10,6 +10,9 @@ import uvicorn
 from pydantic import ValidationError
 from fastapi import FastAPI, BackgroundTasks, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from typing import List
+import numpy as np
+import numpy.typing as npt
 
 import logging
 logger = logging.getLogger(__name__)
@@ -138,6 +141,7 @@ def produce_image_timed(f_lambda, j_lambda, delta, images_dir, colour_set, uniqu
 ###https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events?fbclid=IwZXh0bgNhZW0CMTAAAR0Jc8W85IGtv2YlQdb2PT3QU8-d7vmNGV8_vW6rgQxOKPOdzwto9SDveRI_aem_wJvZf1ZyYehwhxYwiRISCg
 ###https://medium.com/codex/implementation-of-server-sent-events-and-eventsource-live-progress-indicator-using-react-and-723596f35225
 # -download video once all frames computed
+# -live view of frame as it is generated?
 # -improve logging
 # -Consolidate input validations in one place
 # -Animations can pan/zoom the grid
@@ -153,34 +157,56 @@ def create_animation_inner(uuid: str, params: types.AnimationParameters):
     utils.mkdir_if_nonexistent(images_dir)
 
     unique_solutions = solve_interface.find_unique_solutions_wrapper(params.f_lambda, params.j_lambda, params.deltas[0])
-    expected_number_of_solns = unique_solutions.shape[0]
-    x_coords, y_coords = solve_interface.get_image_pixel_coords_wrapper(params.y_pixels, params.x_pixels, unique_solutions)
+    # TODO: catch no solutions here
+    # Update this as new solutions are found - the ordering will be kept consistent so that each solution always is given the same colour in each frame
+    known_solutions = [unique_solutions[x, :] for x in range(unique_solutions.shape[0])]
+    # Calculate the mean Manhattan distance between the solutions - can use this as a scale reference to determine if any solutions in consecutive frames are new
+    mean_manhattan = mean_manhattan_distance_between_group_of_points(known_solutions)
+
+    x_coords, y_coords = solve_interface.get_image_pixel_coords_wrapper(params.y_pixels, params.x_pixels, np.array(known_solutions))
 
     i = 0
     total_duration = produce_image_timed(params.f_lambda, params.j_lambda, params.deltas[0],
                                           images_dir, params.colour_set, unique_solutions, x_coords, y_coords, 0)
 
-
-    # Assume that if the same number of solutions is found each time, the sorted solutions will
-    # correspond to each other in sequence between different deltas
     for delta in params.deltas[1:]:
         i += 1
-        unique_solutions = solve_interface.\
-            find_unique_solutions_wrapper(params.f_lambda, params.j_lambda, delta)
-        if unique_solutions.shape[0] > expected_number_of_solns:
-            print(f'Terminating because number of solutions increased from {expected_number_of_solns}'
-                  f' to {unique_solutions.shape[0]} for delta={delta}')
-            exit(0)
+
+        # TODO: If there is a new solution within X frames of the last new solution (or the first frame) error requiring higher number of frames
+
+        unique_solutions = solve_interface.find_unique_solutions_wrapper(params.f_lambda, params.j_lambda, delta)
+        # Add any new solutions to the known_solutions - new if it is not within 1% of the initial mean_manhattan of any existing solutions
+        for j in range(unique_solutions.shape[0]):
+
+            distances = [manhattan_distance(known_solution, unique_solutions[j, :]) for known_solution in known_solutions]
+            index_min = min(range(len(distances)), key=distances.__getitem__)
+
+            if distances[index_min] < mean_manhattan/200:
+                known_solutions[index_min] = unique_solutions[j, :]
+            else:
+                known_solutions.append(unique_solutions[j, :])
+                print(f'There are now {len(known_solutions)} known solutions')
 
         print(f'Now solving the grid for frame {i+1} of {len(params.deltas)} (delta={delta}) ({unique_solutions.shape[0]} unique solutions)...')
-        total_duration += produce_image_timed(params.f_lambda, params.j_lambda, delta, images_dir, params.colour_set, unique_solutions, x_coords, y_coords, i)
+        total_duration += produce_image_timed(params.f_lambda, params.j_lambda, delta, images_dir, params.colour_set, np.array(known_solutions), x_coords, y_coords, i)
         utils.print_time_remaining_estimate(i, len(params.deltas), total_duration)
 
-    # if cfg.SAVE_PNG_FRAMES:
-    #     imaging.image.png_to_mp4(images_dir, params.fps)
     imaging.image.rgb_to_mp4(images_dir, params.fps)
     logger.debug(f'ENABLE_AOT={cfg.ENABLE_AOT}, ENABLE_QUADTREES={cfg.ENABLE_QUADTREES}')
     logger.debug(f'Generation time: {total_duration} s')
+
+
+def mean_manhattan_distance_between_group_of_points(points: List[npt.NDArray]):
+    total = 0
+    n = len(points)
+    for i in range(n):
+        for j in range(i + 1, n):
+            total += manhattan_distance(points[i], points[j])
+    return total/(n * (n-1)/2)
+
+
+def manhattan_distance(array1: npt.NDArray, array2: npt.NDArray):
+    return np.abs(array1 - array2).sum()
 
 
 def create_still_inner(uuid: str, params: types.StillParameters):

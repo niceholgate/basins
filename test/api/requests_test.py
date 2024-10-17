@@ -7,8 +7,8 @@ import pytest
 
 def test_get_lambdas():
     f, j = requests.StillParameters.get_lambdas(shared.TEST_EXPRESSIONS)
-    f_num = np.array(f(1.0, 2.0, 3.0), dtype=np.float_)
-    j_num = np.array(j(1.0, 2.0, 3.0), dtype=np.float_)
+    f_num = np.array(f(1.0, 2.0, 3.0), dtype=np.float64)
+    j_num = np.array(j(1.0, 2.0, 3.0), dtype=np.float64)
     assert f_num.shape == (2,)
     assert j_num.shape == (2, 2)
 

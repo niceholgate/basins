@@ -11,22 +11,22 @@ from typing import Tuple, Callable, Optional
 nb.config.DISABLE_JIT = not cfg.ENABLE_JIT
 
 
-@nb.njit(target_backend=cfg.NUMBA_TARGET)
+@nb.njit
 def points_approx_equal(p1: npt.NDArray, p2: npt.NDArray, epsilon: float = cfg.EPSILON) -> bool:
     return bool(np.linalg.norm(p1 - p2) < 2 * epsilon)
 
 
-@nb.njit(target_backend=cfg.NUMBA_TARGET)
+@nb.njit
 def newton_solve(f_lam: Callable, j_lam: Callable, starting_guess: npt.NDArray, d: float) -> Tuple[
     npt.NDArray, int]:
     """Perform Newton's method until either the solution converges or the maximum iterations are exceeded."""
     current_guess = starting_guess
     # delta_norm_hist = []
-    delta_norm = np.float_(1000.0)
+    delta_norm = np.float64(1000.0)
     n_iters = 0
     while delta_norm > cfg.EPSILON and n_iters < cfg.MAX_ITERS:
-        f_num = np.array(f_lam(current_guess[0], current_guess[1], d), dtype=np.float_)
-        j_num = np.array(j_lam(current_guess[0], current_guess[1], d), dtype=np.float_)
+        f_num = np.array(f_lam(current_guess[0], current_guess[1], d), dtype=np.float64)
+        j_num = np.array(j_lam(current_guess[0], current_guess[1], d), dtype=np.float64)
         delta = np.linalg.solve(j_num, -f_num).flatten()
         current_guess = current_guess + delta
         delta_norm = np.linalg.norm(delta)
@@ -44,8 +44,8 @@ create_solver_spec = (
     float64,
     float64[:, :]
 )
-@nb.njit(target_backend=cfg.NUMBA_TARGET)
-def create_solver(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions):
+@nb.njit
+def create_solver(f_lambda: Callable, j_lambda: Callable, x_coords: npt.NDArray, y_coords: npt.NDArray, delta: float, unique_solutions: npt.NDArray):
     return Solver(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
 
 
@@ -61,14 +61,14 @@ solution_context_spec = (
 )
 @jitclass(solution_context_spec)
 class Solver(object):
-    def __init__(self, f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions):
+    def __init__(self, f_lambda: Callable, j_lambda: Callable, x_coords: npt.NDArray, y_coords: npt.NDArray, delta: float, unique_solutions: npt.NDArray):
         self.f_lambda = f_lambda
         self.j_lambda = j_lambda
         self.delta = delta
         self.unique_solutions = unique_solutions
         self.x_coords, self.y_coords = x_coords, y_coords
-        self.solutions_grid = -np.ones((len(y_coords), len(x_coords)), dtype=np.int_)
-        self.iterations_grid = np.zeros((len(y_coords), len(x_coords)), dtype=np.int_)
+        self.solutions_grid = -np.ones((len(y_coords), len(x_coords)), dtype=np.int64)
+        self.iterations_grid = np.zeros((len(y_coords), len(x_coords)), dtype=np.int64)
 
     def solve_grid(self) -> None:
         """Find which unique solution is reached for each pixel, and how many Newton's method iterations it took."""

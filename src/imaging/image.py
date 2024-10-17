@@ -48,21 +48,12 @@ def save_still(images_dir: Path, solutions_grid: npt.NDArray, iterations_grid: n
     if not (isinstance(colour_set, list) and len(colour_set) == unique_solutions.shape[0]):
         idx = colour_set if isinstance(colour_set, int) else 0
 
-        # hacky
-        # if unique_solutions.shape[0] < 5:
-        #     idx += (5-unique_solutions.shape[0])
-
         colour_set = []
         while len(colour_set) < unique_solutions.shape[0]:
             colour_set.append(cfg.DEFAULT_COLOURS[idx % len(cfg.DEFAULT_COLOURS)])
             idx += 1
 
-    # hacky
-    # colour_set = ['tab:cyan' if c == 'tab:red' else c for c in colour_set]
-
     rgb_colours = [matplotlib.colors.to_rgb(colour) for colour in colour_set]
-    # print(colour_set)
-    # print(unique_solutions)
 
     for j in range(solutions_grid.shape[0]):
         for i in range(solutions_grid.shape[1]):
@@ -126,7 +117,7 @@ def rgb_to_mp4(images_dir: Path, fps: int):
 
 
 def load_rgb_file(rgb_frame_data_path: Path, output_array_dim: int = 2) -> np.ndarray:
-    array_2d = np.genfromtxt(rgb_frame_data_path, dtype=np.int_)
+    array_2d = np.genfromtxt(rgb_frame_data_path, dtype=np.int64)
     if output_array_dim == 3:
         height, width_x_channels = array_2d.shape
         return array_2d.reshape([height, int(width_x_channels/3), 3])
