@@ -179,7 +179,7 @@ class Solver(object):
 class SolverTaichi(object):
     def __init__(self, f_lambda: Callable, j_lambda: Callable, x_coords: npt.NDArray, y_coords: npt.NDArray, delta: float, unique_solutions: npt.NDArray):
         # ti.init(debug=True)
-        ti.init(arch=ti.cpu)
+        ti.init(arch=ti.gpu)
         self.f_lambda = f_lambda
         self.j_lambda = j_lambda
         self.delta = delta
@@ -192,19 +192,22 @@ class SolverTaichi(object):
 
         self.solutions_grid = ti.field(dtype=int, shape=(len(y_coords), len(x_coords)))
         self.iterations_grid = ti.field(dtype=int, shape=(len(y_coords), len(x_coords)))
-        self.fill_grid(self.solutions_grid, -1)
-        self.fill_grid(self.iterations_grid, 0)
-        self.current_guess = ti.field(dtype=float, shape=(2,))
+        self.solutions_grid.fill(-1)
+        self.iterations_grid.fill(0)
+        # self.fill_grid(self.solutions_grid, -1)
+        # self.fill_grid(self.iterations_grid, 0)
 
     @ti.func
-    def newton_solve_taichi(self, d: float):  # -> ti.types.struct(solution=ti.math.vec2, n_iters=ti.int16):
+    def newton_solve_taichi(self, d: float, init_x, init_y):  # -> ti.types.struct(solution=ti.math.vec2, n_iters=ti.int16):
         """Perform Newton's method until either the solution converges or the maximum iterations are exceeded."""
         # delta_norm_hist = []
         delta_norm = 1000.0
         n_iters = 0
+        curr_x = init_x
+        curr_y = init_y
         while delta_norm > cfg.EPSILON and n_iters < cfg.MAX_ITERS:
-            f = ti.math.vec2(self.f_lambda(self.current_guess[0], self.current_guess[1], d))
-            j = ti.math.mat2(self.j_lambda(self.current_guess[0], self.current_guess[1], d))
+            f = ti.math.vec2(self.f_lambda(curr_x, curr_y, d))
+            j = ti.math.mat2(self.j_lambda(curr_x, curr_y, d))
 
             # print('hello1', f[1], j[0, 0])
 
@@ -212,8 +215,8 @@ class SolverTaichi(object):
             j_inv = ti.math.inverse(j)
             delta = j_inv @ -f
 
-            self.current_guess[0] = self.current_guess[0] + delta[0]
-            self.current_guess[1] = self.current_guess[1] + delta[1]
+            curr_x = curr_x + delta[0]
+            curr_y = curr_y + delta[1]
 
             # print(delta[0], delta[1])
             delta_norm = ti.math.length(delta)
@@ -222,13 +225,13 @@ class SolverTaichi(object):
             # print(f'stopping params: {delta_norm}>{cfg.EPSILON}, {n_iters}/{cfg.MAX_ITERS}')
 
         # print(f'Arrived at solution {self.current_guess[0]}, {self.current_guess[1]} in {n_iters} iters')
-        return n_iters
+        return curr_x, curr_y, n_iters
 
-    @staticmethod
-    @ti.kernel
-    def fill_grid(grid: ti.template(), value: int):
-        for i, j in grid:
-            grid[i, j] = value
+    # @staticmethod
+    # @ti.kernel
+    # def fill_grid(grid: ti.template(), value: int):
+    #     for i, j in grid:
+    #         grid[i, j] = value
 
     @ti.kernel
     def solve_grid(self):
@@ -240,14 +243,14 @@ class SolverTaichi(object):
     def _set_pixel_values_if_unset(self, j: int, i: int):
         # Set the values for this pixel if it hasn't been attempted yet (-1)
         if self.solutions_grid[j, i] == -1:
-            self.current_guess[0] = self.x_coords[i]
-            self.current_guess[1] = self.y_coords[j]
             # print('hey!', self.current_guess, iters)
-            self.iterations_grid[j, i] = self.newton_solve_taichi(self.delta)
+            # print('before:', self.x_coords[i],self.y_coords[j])
+            x, y, self.iterations_grid[j, i] = self.newton_solve_taichi(self.delta, self.x_coords[i], self.y_coords[j])
+            # print('after:', self.x_coords[i], self.y_coords[j])
             # print('yo', iters)
             # print(self.unique_solutions[0, 0])
             if self.iterations_grid[j, i] < cfg.MAX_ITERS:
-                match = self._get_index_of_matching_unique_soln()
+                match = self._get_index_of_matching_unique_soln(x, y)
                 if match != -1:
                     self.solutions_grid[j, i] = match
                 else:
@@ -258,11 +261,11 @@ class SolverTaichi(object):
                 # print(f'WARNING: Maximum iterations were exceeded for a pixel')
 
     @ti.func
-    def _get_index_of_matching_unique_soln(self) -> int:
+    def _get_index_of_matching_unique_soln(self, x, y) -> int:
         match = -1
         for unique_soln_idx in range(self.unique_solutions.shape[0]):
             if self.points_approx_equal(self.unique_solutions[unique_soln_idx, 0], self.unique_solutions[unique_soln_idx, 1],
-                                        self.current_guess[0], self.current_guess[1], unique_soln_idx):
+                                        x, y, unique_soln_idx):
                 match = unique_soln_idx + 1
                 break
         return match

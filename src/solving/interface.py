@@ -1,3 +1,5 @@
+import timeit
+
 import src.config as cfg
 import src.utils as utils
 from src.solving import solve
@@ -131,7 +133,10 @@ solve_grid_spec = (
 def solve_grid(f_lambda: Callable, j_lambda: Callable, x_coords: npt.NDArray, y_coords: npt.NDArray, delta: float, unique_solutions: npt.NDArray) -> Tuple[npt.NDArray, npt.NDArray]:
     solver = solve.create_solver(ti.func(f_lambda), ti.func(j_lambda), x_coords, y_coords, delta, unique_solutions)
     print('starting solve')
+    from datetime import datetime
+    n = datetime.now()
     solver.solve_grid()
+    print((datetime.now()-n).total_seconds()*1000)
     print('finishing solve')
     return solver.solutions_grid, solver.iterations_grid
 
