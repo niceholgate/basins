@@ -10,6 +10,7 @@ import numpy.typing as npt
 from numba.pycc import CC
 from numba import int32, float64, types
 from typing import Tuple, Callable, List, Optional
+import taichi as ti
 
 MODULE_NAME = 'solving_interface'
 cc = CC(MODULE_NAME)
@@ -23,43 +24,33 @@ except:
     PRECOMPILED = False
 
 
-def find_unique_solutions_wrapper(f_lambda: Callable, j_lambda: Callable, delta: float) -> Optional[npt.NDArray]:
+def find_unique_solutions_wrapper(f_lambda: Callable, j_lambda: Callable, delta: float, search_limits: npt.NDArray) -> Optional[npt.NDArray]:
     if PRECOMPILED and cfg.ENABLE_AOT:
-        return solving_interface.find_unique_solutions(f_lambda, j_lambda, delta)
+        return solving_interface.find_unique_solutions(f_lambda, j_lambda, delta, search_limits)
     print('Used pythonic find_unique_solutions')
-    return find_unique_solutions(f_lambda, j_lambda, delta)
+    return find_unique_solutions(f_lambda, j_lambda, delta, search_limits)
 
 
 find_unique_solutions_spec = (
     types.List(float64)(float64, float64, float64).as_type(),
     types.List(types.List(float64))(float64, float64, float64).as_type(),
-    float64
+    float64,
+    float64[:]
 )
 @cc.export('find_unique_solutions', find_unique_solutions_spec)
-def find_unique_solutions(f_lambda: Callable, j_lambda: Callable, delta: float) -> Optional[npt.NDArray]:
-
-    # Why is this only finding 3 unique solutions most of hte time? Need to add request override of the search lims?
-    # First frame unique solutions inform the random search bounds for subsequent frames?
-    # {
-    #     "x_pixels": 100,
-    #     "y_pixels": 100,
-    #     "expressions": ["y**2+x**2+sin(5*x+d)/3-3", "y-2*x**2-x**3/2-cos(5*x+d)/5+3"],
-    #     "colour_set": 5,
-    #     "delta": 6.283185307,
-    #     "frames": 240,
-    #     "fps": 30
-    # }
+def find_unique_solutions(f_lambda: Callable, j_lambda: Callable, delta: float, search_limits: npt.NDArray) -> Optional[npt.NDArray]:
 
     """Do a randomised search to find unique solutions, stopping early if new unique solutions stop being found."""
     unique_solns: List[npt.NDArray] = []
-    x_randoms = cfg.SEARCH_X_LIMS[0] + (cfg.SEARCH_X_LIMS[1] - cfg.SEARCH_X_LIMS[0]) * np.random.random(cfg.MAX_SEARCH_POINTS)
-    y_randoms = cfg.SEARCH_Y_LIMS[0] + (cfg.SEARCH_Y_LIMS[1] - cfg.SEARCH_Y_LIMS[0]) * np.random.random(cfg.MAX_SEARCH_POINTS)
+    x_randoms = search_limits[0] + (search_limits[1] - search_limits[0]) * np.random.random(cfg.MAX_SEARCH_POINTS)
+    y_randoms = search_limits[2] + (search_limits[3] - search_limits[2]) * np.random.random(cfg.MAX_SEARCH_POINTS)
     # randoms = np.array([x_randoms, y_randoms], dtype=np.float64)
     point_count = 0
     converged_search_points_since_last_new_soln = 0
     for idx in range(x_randoms.shape[0]):
         point_count += 1
         soln, iters = solve.newton_solve(f_lambda, j_lambda, np.array([x_randoms[idx], y_randoms[idx]], dtype=np.float64), delta)
+        # print(f'Solution: {soln} and iters: {iters} with initial guess: {[x_randoms[idx], y_randoms[idx]]}')
         if iters < cfg.MAX_ITERS:
             if not unique_solns:
                 unique_solns.append(soln)
@@ -76,9 +67,9 @@ def find_unique_solutions(f_lambda: Callable, j_lambda: Callable, delta: float) 
                 unique_solns.append(soln)
 
             if converged_search_points_since_last_new_soln >= cfg.MAX_CONVERGED_SEARCH_POINTS_SINCE_LAST_NEW_SOLUTION:
-                # print(f'End search with {len(unique_solns)} unique solutions after reaching the limit of '
-                #       f'{cfg.MAX_CONVERGED_SEARCH_POINTS_SINCE_LAST_NEW_SOLUTION} consecutive converged search points'
-                #       f' since the last new unique solution.')
+                print(f'End search with {len(unique_solns)} unique solutions after reaching the limit of '
+                      f'{cfg.MAX_CONVERGED_SEARCH_POINTS_SINCE_LAST_NEW_SOLUTION} consecutive converged search points'
+                      f' since the last new unique solution.')
                 break
 
     # Temporarily convert the solutions to tuples to sort them (ensures the random search returns the same result each
@@ -138,8 +129,10 @@ solve_grid_spec = (
 )
 @cc.export('solve_grid', solve_grid_spec)
 def solve_grid(f_lambda: Callable, j_lambda: Callable, x_coords: npt.NDArray, y_coords: npt.NDArray, delta: float, unique_solutions: npt.NDArray) -> Tuple[npt.NDArray, npt.NDArray]:
-    solver = solve.create_solver(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
+    solver = solve.create_solver(ti.func(f_lambda), ti.func(j_lambda), x_coords, y_coords, delta, unique_solutions)
+    print('starting solve')
     solver.solve_grid()
+    print('finishing solve')
     return solver.solutions_grid, solver.iterations_grid
 
 

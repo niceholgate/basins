@@ -3,6 +3,7 @@ from .quad_tree import QuadTree
 
 import numpy as np
 import numpy.typing as npt
+import taichi as ti
 import numba as nb
 from numba.experimental import jitclass
 from numba import int64, float64, types
@@ -46,6 +47,8 @@ create_solver_spec = (
 )
 @nb.njit
 def create_solver(f_lambda: Callable, j_lambda: Callable, x_coords: npt.NDArray, y_coords: npt.NDArray, delta: float, unique_solutions: npt.NDArray):
+    if cfg.ENABLE_TAICHI:
+        return SolverTaichi(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
     return Solver(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
 
 
@@ -170,3 +173,104 @@ class Solver(object):
             else:
                 self.solutions_grid[j, i] = 0
                 # print(f'WARNING: Maximum iterations were exceeded for a pixel')
+
+
+@ti.data_oriented
+class SolverTaichi(object):
+    def __init__(self, f_lambda: Callable, j_lambda: Callable, x_coords: npt.NDArray, y_coords: npt.NDArray, delta: float, unique_solutions: npt.NDArray):
+        # ti.init(debug=True)
+        ti.init(arch=ti.cpu)
+        self.f_lambda = f_lambda
+        self.j_lambda = j_lambda
+        self.delta = delta
+        self.unique_solutions = ti.field(dtype=float, shape=unique_solutions.shape)
+        self.unique_solutions.from_numpy(unique_solutions)
+        self.x_coords = ti.field(dtype=float, shape=(len(x_coords),))
+        self.x_coords.from_numpy(x_coords)
+        self.y_coords = ti.field(dtype=float, shape=(len(y_coords),))
+        self.y_coords.from_numpy(y_coords)
+
+        self.solutions_grid = ti.field(dtype=int, shape=(len(y_coords), len(x_coords)))
+        self.iterations_grid = ti.field(dtype=int, shape=(len(y_coords), len(x_coords)))
+        self.fill_grid(self.solutions_grid, -1)
+        self.fill_grid(self.iterations_grid, 0)
+        self.current_guess = ti.field(dtype=float, shape=(2,))
+
+    @ti.func
+    def newton_solve_taichi(self, d: float):  # -> ti.types.struct(solution=ti.math.vec2, n_iters=ti.int16):
+        """Perform Newton's method until either the solution converges or the maximum iterations are exceeded."""
+        # delta_norm_hist = []
+        delta_norm = 1000.0
+        n_iters = 0
+        while delta_norm > cfg.EPSILON and n_iters < cfg.MAX_ITERS:
+            f = ti.math.vec2(self.f_lambda(self.current_guess[0], self.current_guess[1], d))
+            j = ti.math.mat2(self.j_lambda(self.current_guess[0], self.current_guess[1], d))
+
+            # print('hello1', f[1], j[0, 0])
+
+            # det = ti.math.determinant(j)
+            j_inv = ti.math.inverse(j)
+            delta = j_inv @ -f
+
+            self.current_guess[0] = self.current_guess[0] + delta[0]
+            self.current_guess[1] = self.current_guess[1] + delta[1]
+
+            # print(delta[0], delta[1])
+            delta_norm = ti.math.length(delta)
+            # delta_norm_hist.append(delta_norm)
+            n_iters += 1
+            # print(f'stopping params: {delta_norm}>{cfg.EPSILON}, {n_iters}/{cfg.MAX_ITERS}')
+
+        # print(f'Arrived at solution {self.current_guess[0]}, {self.current_guess[1]} in {n_iters} iters')
+        return n_iters
+
+    @staticmethod
+    @ti.kernel
+    def fill_grid(grid: ti.template(), value: int):
+        for i, j in grid:
+            grid[i, j] = value
+
+    @ti.kernel
+    def solve_grid(self):
+        """Find which unique solution is reached for each pixel, and how many Newton's method iterations it took."""
+        for i, j in self.solutions_grid:
+            self._set_pixel_values_if_unset(j, i)
+
+    @ti.func
+    def _set_pixel_values_if_unset(self, j: int, i: int):
+        # Set the values for this pixel if it hasn't been attempted yet (-1)
+        if self.solutions_grid[j, i] == -1:
+            self.current_guess[0] = self.x_coords[i]
+            self.current_guess[1] = self.y_coords[j]
+            # print('hey!', self.current_guess, iters)
+            self.iterations_grid[j, i] = self.newton_solve_taichi(self.delta)
+            # print('yo', iters)
+            # print(self.unique_solutions[0, 0])
+            if self.iterations_grid[j, i] < cfg.MAX_ITERS:
+                match = self._get_index_of_matching_unique_soln()
+                if match != -1:
+                    self.solutions_grid[j, i] = match
+                else:
+                    self.solutions_grid[j, i] = 0
+                    # print(f'WARNING: Image will ignore a novel solution found on the grid: {solution_pixel}')
+            else:
+                self.solutions_grid[j, i] = 0
+                # print(f'WARNING: Maximum iterations were exceeded for a pixel')
+
+    @ti.func
+    def _get_index_of_matching_unique_soln(self) -> int:
+        match = -1
+        for unique_soln_idx in range(self.unique_solutions.shape[0]):
+            if self.points_approx_equal(self.unique_solutions[unique_soln_idx, 0], self.unique_solutions[unique_soln_idx, 1],
+                                        self.current_guess[0], self.current_guess[1], unique_soln_idx):
+                match = unique_soln_idx + 1
+                break
+        return match
+
+    @staticmethod
+    @ti.func
+    def points_approx_equal(x1, y1, x2, y2, unique_soln_idx: int, epsilon: float = cfg.EPSILON) -> bool:
+        # todo: test speed without a sqrt here. kinda unnecessary.
+        result = ti.math.sqrt((x1-x2)**2+(y1-y2)**2) < 2 * epsilon
+        # print(f'comparing {x2}, {y2} to {x1}, {y1} (solution index {unique_soln_idx}): {result}')
+        return result

@@ -2,11 +2,12 @@ import logging
 
 import src.config as cfg
 
+import numpy as np
 import numpy.typing as npt
 import matplotlib.pyplot as plt
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable
+from typing import Callable, List
 
 
 def mkdir_if_nonexistent(path: Path) -> None:
@@ -71,3 +72,18 @@ def logger_setup(logger: logging.Logger, uuid: str, file_name_base: str) -> None
     # add the handlers to the logger
     logger.addHandler(fh)
     logger.addHandler(ch)
+
+
+def manhattan_distance(array1: npt.NDArray, array2: npt.NDArray):
+    return np.abs(array1 - array2).sum()
+
+
+def mean_manhattan_distance_between_group_of_points(points: List[npt.NDArray]):
+    total = 0
+    n = len(points)
+    for i in range(n):
+        for j in range(i + 1, n):
+            total += manhattan_distance(points[i], points[j])
+    return total/(n * (n-1)/2)
+
+

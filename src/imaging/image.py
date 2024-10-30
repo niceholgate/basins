@@ -20,26 +20,7 @@ import src.imaging.interface as imaging_interface
 nb.config.DISABLE_JIT = not cfg.ENABLE_JIT
 
 
-# #{
-#     "x_pixels": 600,
-#     "y_pixels": 400,
-#     "expressions": ["y**2*exp(-0.1*x**2)+2*x*y+2*x**2-4-0.6*sin(15*(x+d))", "y-7*x**2+3.2"],
-#     "colour_set": 3,
-#     "delta": 0.418879,
-#     "frames": 10,
-#     "fps": 20
-# }
-# {
-#     "x_pixels": 300,
-#     "y_pixels": 200,
-#     "expressions": ["y**2*exp(-0.1*x**2)+2*x*y+2*x**2-4-0.5*sin(15*(x+d))", "y-10*x**2+3+d"],
-#     "colour_set": 3,
-#     "delta": 0.418879,
-#     "frames": 120,
-#     "fps": 30
-# }
-# flickering
-def save_still(images_dir: Path, solutions_grid: npt.NDArray, iterations_grid: npt.NDArray, unique_solutions: npt.NDArray, smoothing: bool = True, blending: bool = True, colour_set: Union[int, List[str]] = 0, frame: int = 0):
+def save_still(images_dir: Path, solutions_grid: npt.NDArray, iterations_grid: npt.NDArray, unique_solutions: npt.NDArray, colour_set: Union[int, List[str]] = 0, frame: int = 0, smoothing: bool = False, blending: bool = False):
     """Generate an image with the specified colour scheme, or a range of colour schemes if none specified."""
     pixel_grid = np.zeros((solutions_grid.shape[0], solutions_grid.shape[1], 3), dtype=np.uint8)
     smoothed_solutions = imaging_interface.smooth_grid_wrapper(solutions_grid) if smoothing else solutions_grid
@@ -72,7 +53,7 @@ def create_blending_arrays(iterations: npt.NDArray) -> List[npt.NDArray]:
     # Need to iterate through the arrays the same way as they are created
     for j in range(iterations.shape[0]):
         for i in range(iterations.shape[1]):
-            blending_arrays.append(imaging_interface.create_blending_array_wrapper(j, i, iterations[j, i], cbrt_iterations[j, i]))
+            blending_arrays.append(imaging_interface.create_blending_array_wrapper(iterations.shape[0], iterations.shape[1], j, i, iterations[j, i], cbrt_iterations[j, i]))
     return blending_arrays
 
 

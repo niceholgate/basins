@@ -22,7 +22,7 @@ try:
 except:
     PRECOMPILED = False
 
-
+# TODO: smoothing/blending are currently not working after numba AOT - slow then failure
 def smooth_grid_wrapper(solutions: npt.NDArray) -> npt.NDArray:
     if PRECOMPILED and cfg.ENABLE_AOT:
         return imaging_interface.smooth_grid(solutions)

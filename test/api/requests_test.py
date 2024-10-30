@@ -15,6 +15,7 @@ def test_get_lambdas():
 
 def test_animation_parameters_from_request_no_delta_term_raises_value_error():
     request = requests.AnimationRequest(expressions=['y**2+2*x*y+2*x**2-4-0.5*sin(15*(x))', 'y-10*x**2+3'],
+                                        search_limits=[-1000, 1000, -1000, 1000],
                                         delta=1.0,
                                         frames=10,
                                         fps=5)

@@ -10,9 +10,7 @@ import uvicorn
 from pydantic import ValidationError
 from fastapi import FastAPI, BackgroundTasks, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List
 import numpy as np
-import numpy.typing as npt
 
 import logging
 logger = logging.getLogger(__name__)
@@ -33,7 +31,15 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-
+# {
+#     "x_pixels": 400,
+#     "y_pixels": 400,
+#     "expressions": ["x**2+2*(y-6)**2-10-sin(2*x+d)", "2**(-x**2)-y/6+1+sin(x+d)/10"],
+#     "colour_set": 1,
+#     "delta": 6.283185307,
+#     "frames": 300,
+#     "fps": 30
+# } why does this only find 2 solutions? there are 4.
 @app.post('/create/still', status_code=202)
 async def create_still(request: types.StillRequest, response: Response, background_tasks: BackgroundTasks):
     try:
@@ -46,8 +52,10 @@ async def create_still(request: types.StillRequest, response: Response, backgrou
         background_tasks.add_task(
             create_still_inner,
             this_uuid, params)
-        return {'message': 'Creating an image',
-                'id': this_uuid}
+        return {
+            'message': 'Creating an image',
+            'id': this_uuid}
+
     except ValidationError as e:
         response.status_code = status.HTTP_400_BAD_REQUEST
         return {'message': 'Input errors: ' + str({error['loc'][0]: error['msg'] for error in e.errors()})}
@@ -65,18 +73,23 @@ async def create_animation(request: types.AnimationRequest, response: Response, 
         background_tasks.add_task(
             create_animation_inner,
             this_uuid, params)
-        return {'message': 'Creating an animation',
-                'id': this_uuid}
+        response.body = {
+            'message': 'Creating an animation',
+            'id': this_uuid}
+        return response
     except ValidationError as err:
         response.status_code = status.HTTP_400_BAD_REQUEST
-        return {'message': 'Input errors: ' + str({error['loc'][0]: error['msg'] for error in err.errors()})}
+        response.body = {'message': 'Input errors: ' + str({error['loc'][0]: error['msg'] for error in err.errors()})}
+        return response
     except ValueError as err:
         response.status_code = status.HTTP_400_BAD_REQUEST
-        return {'message': 'Input errors: ' + str(err)}
+        response.body = {'message': 'Input errors: ' + str(err)}
+        return response
     except Exception as err:
         print(err)
         response.status_code = status.HTTP_400_BAD_REQUEST
-        return {'message': 'Input errors: ' + str(err)}
+        response.body = {'message': 'Input errors: ' + str(err)}
+        return response
 
 
 @app.get('/load/{uuid}/rgb_frame/{frame}')
@@ -84,11 +97,13 @@ def load_rgb_frame(uuid: str, frame: int, response: Response):
     try:
         directory = utils.get_images_dir(uuid)
         rgb_frame_data_path = directory / utils.get_frame_filename(frame, 'txt')
-        return imaging.image.load_rgb_file(rgb_frame_data_path).tolist()
+        response.body = imaging.image.load_rgb_file(rgb_frame_data_path).tolist()
+        return response
     except Exception as err:
         print(err)
         response.status_code = status.HTTP_400_BAD_REQUEST
-        return {'message': 'Input errors: ' + str(err)}
+        response.body = {'message': 'Input errors: ' + str(err)}
+        return response
 
 
 # TODO: ability to look at a selection of frames in the video (while they are being produced),
@@ -132,7 +147,7 @@ def produce_image_timed(f_lambda, j_lambda, delta, images_dir, colour_set, uniqu
         solutions_grid, iterations_grid = solve_interface.solve_grid_quadtrees_wrapper(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
     else:
         solutions_grid, iterations_grid = solve_interface.solve_grid_wrapper(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
-    imaging.image.save_still(images_dir, solutions_grid, iterations_grid, unique_solutions, smoothing=False, blending=False, colour_set=colour_set, frame=i)
+    imaging.image.save_still(images_dir, solutions_grid, iterations_grid, unique_solutions, colour_set=colour_set, frame=i)
 
 
 # TODO:
@@ -142,11 +157,13 @@ def produce_image_timed(f_lambda, j_lambda, delta, images_dir, colour_set, uniqu
 ###https://medium.com/codex/implementation-of-server-sent-events-and-eventsource-live-progress-indicator-using-react-and-723596f35225
 # -download video once all frames computed
 # -live view of frame as it is generated?
-# -improve logging
+# -add more logging
 # -Consolidate input validations in one place
 # -Animations can pan/zoom the grid
+# -Complex equations
 # -queue and RL requests
 # -setup lambda, APIGateway, static app hosting, LocalStack
+# -numba 'interface' concept might be cleaner as a module e.g. solving.interface uses classes in quad_tree and solve
 
 
 def create_animation_inner(uuid: str, params: types.AnimationParameters):
@@ -156,57 +173,49 @@ def create_animation_inner(uuid: str, params: types.AnimationParameters):
     images_dir = utils.get_images_dir(uuid)
     utils.mkdir_if_nonexistent(images_dir)
 
-    unique_solutions = solve_interface.find_unique_solutions_wrapper(params.f_lambda, params.j_lambda, params.deltas[0])
-    # TODO: catch no solutions here
+    unique_solutions = solve_interface.find_unique_solutions_wrapper(params.f_lambda, params.j_lambda, params.deltas[0], np.array(params.search_limits))
+    if len(unique_solutions) < 2:
+        raise Exception('There are no solutions!' if len(unique_solutions) == 0 else 'There is only 1 solution!')
+
     # Update this as new solutions are found - the ordering will be kept consistent so that each solution always is given the same colour in each frame
     known_solutions = [unique_solutions[x, :] for x in range(unique_solutions.shape[0])]
     # Calculate the mean Manhattan distance between the solutions - can use this as a scale reference to determine if any solutions in consecutive frames are new
-    mean_manhattan = mean_manhattan_distance_between_group_of_points(known_solutions)
+    mean_manhattan = utils.mean_manhattan_distance_between_group_of_points(known_solutions)
 
     x_coords, y_coords = solve_interface.get_image_pixel_coords_wrapper(params.y_pixels, params.x_pixels, np.array(known_solutions))
 
-    i = 0
+    frame_idx = 0
+    frame_idx_last_new_soln = 0
     total_duration = produce_image_timed(params.f_lambda, params.j_lambda, params.deltas[0],
                                           images_dir, params.colour_set, unique_solutions, x_coords, y_coords, 0)
 
     for delta in params.deltas[1:]:
-        i += 1
+        frame_idx += 1
 
-        # TODO: If there is a new solution within X frames of the last new solution (or the first frame) error requiring higher number of frames
-
-        unique_solutions = solve_interface.find_unique_solutions_wrapper(params.f_lambda, params.j_lambda, delta)
+        unique_solutions = solve_interface.find_unique_solutions_wrapper(params.f_lambda, params.j_lambda, delta, np.array(params.search_limits))
         # Add any new solutions to the known_solutions - new if it is not within 1% of the initial mean_manhattan of any existing solutions
         for j in range(unique_solutions.shape[0]):
 
-            distances = [manhattan_distance(known_solution, unique_solutions[j, :]) for known_solution in known_solutions]
+            distances = [utils.manhattan_distance(known_solution, unique_solutions[j, :]) for known_solution in known_solutions]
             index_min = min(range(len(distances)), key=distances.__getitem__)
 
             if distances[index_min] < mean_manhattan/200:
                 known_solutions[index_min] = unique_solutions[j, :]
             else:
+                if frame_idx-frame_idx_last_new_soln < cfg.MIN_FRAMES_BETWEEN_NEW_SOLUTIONS:
+                    # TODO: log then break out of loop here logger.debug(params.model_dump_json(exclude={'f_lambda', 'j_lambda'}))
+                    raise Exception(f'A new solution was found in just {frame_idx-frame_idx_last_new_soln} frames. Try a lower delta-per-frame to stabilse the animation.')
+                frame_idx_last_new_soln = frame_idx
                 known_solutions.append(unique_solutions[j, :])
                 print(f'There are now {len(known_solutions)} known solutions')
 
-        print(f'Now solving the grid for frame {i+1} of {len(params.deltas)} (delta={delta}) ({unique_solutions.shape[0]} unique solutions)...')
-        total_duration += produce_image_timed(params.f_lambda, params.j_lambda, delta, images_dir, params.colour_set, np.array(known_solutions), x_coords, y_coords, i)
-        utils.print_time_remaining_estimate(i, len(params.deltas), total_duration)
+        print(f'Now solving the grid for frame {frame_idx+1} of {len(params.deltas)} (delta={delta}) ({unique_solutions.shape[0]} unique solutions)...')
+        total_duration += produce_image_timed(params.f_lambda, params.j_lambda, delta, images_dir, params.colour_set, np.array(known_solutions), x_coords, y_coords, frame_idx)
+        utils.print_time_remaining_estimate(frame_idx, len(params.deltas), total_duration)
 
     imaging.image.rgb_to_mp4(images_dir, params.fps)
     logger.debug(f'ENABLE_AOT={cfg.ENABLE_AOT}, ENABLE_QUADTREES={cfg.ENABLE_QUADTREES}')
     logger.debug(f'Generation time: {total_duration} s')
-
-
-def mean_manhattan_distance_between_group_of_points(points: List[npt.NDArray]):
-    total = 0
-    n = len(points)
-    for i in range(n):
-        for j in range(i + 1, n):
-            total += manhattan_distance(points[i], points[j])
-    return total/(n * (n-1)/2)
-
-
-def manhattan_distance(array1: npt.NDArray, array2: npt.NDArray):
-    return np.abs(array1 - array2).sum()
 
 
 def create_still_inner(uuid: str, params: types.StillParameters):
@@ -215,7 +224,10 @@ def create_still_inner(uuid: str, params: types.StillParameters):
 
     images_dir = utils.get_images_dir(uuid)
     utils.mkdir_if_nonexistent(images_dir)
-    unique_solutions = solve_interface.find_unique_solutions_wrapper(params.f_lambda, params.j_lambda, 0)
+    unique_solutions = solve_interface.find_unique_solutions_wrapper(params.f_lambda, params.j_lambda, 0, np.array(params.search_limits))
+    if len(unique_solutions) < 2:
+        raise Exception('There are no solutions!' if len(unique_solutions) == 0 else 'There is only 1 solution!')
+
     x_coords, y_coords = solve_interface.get_image_pixel_coords_wrapper(params.y_pixels, params.x_pixels, unique_solutions)
     generation_time = produce_image_timed(params.f_lambda, params.j_lambda, 0.0, images_dir, params.colour_set, unique_solutions, x_coords, y_coords, 0)
 
@@ -224,4 +236,4 @@ def create_still_inner(uuid: str, params: types.StillParameters):
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8002)
