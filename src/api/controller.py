@@ -7,6 +7,7 @@ import src.config as cfg
 import uuid
 
 import uvicorn
+from datetime import datetime
 from pydantic import ValidationError
 from fastapi import FastAPI, BackgroundTasks, Response, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -46,7 +47,7 @@ async def create_still(request: types.StillRequest, response: Response, backgrou
         params = types.StillParameters.from_request(request)
         this_uuid = str(uuid.uuid4())
 
-        utils.logger_setup(logger, this_uuid, 'still')
+        utils.logger_setup(logger, utils.get_images_dir(this_uuid), 'still')
         logger.debug(request.model_dump_json())
 
         background_tasks.add_task(
@@ -67,7 +68,7 @@ async def create_animation(request: types.AnimationRequest, response: Response, 
         params = types.AnimationParameters.from_request(request)
         this_uuid = str(uuid.uuid4())
 
-        utils.logger_setup(logger, this_uuid, 'animation')
+        utils.logger_setup(logger, utils.get_images_dir(this_uuid), 'animation')
         logger.debug(request.model_dump_json())
 
         background_tasks.add_task(
@@ -147,7 +148,11 @@ def produce_image_timed(f_lambda, j_lambda, delta, images_dir, colour_set, uniqu
         solutions_grid, iterations_grid = solve_interface.solve_grid_quadtrees_wrapper(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
     else:
         solutions_grid, iterations_grid = solve_interface.solve_grid_wrapper(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
-    imaging.image.save_still(images_dir, solutions_grid, iterations_grid, unique_solutions, colour_set=colour_set, frame=i)
+    print('starting save')
+    n = datetime.now()
+    imaging.image.save_still(images_dir, solutions_grid.to_numpy(), iterations_grid.to_numpy(), unique_solutions, colour_set=colour_set, frame=i)
+    print((datetime.now() - n).total_seconds() * 1000)
+    print('finishing save')
 
 
 # TODO:
@@ -167,7 +172,7 @@ def produce_image_timed(f_lambda, j_lambda, delta, images_dir, colour_set, uniqu
 
 
 def create_animation_inner(uuid: str, params: types.AnimationParameters):
-    utils.logger_setup(logger, uuid, 'animation')
+    utils.logger_setup(logger, utils.get_images_dir(uuid), 'animation')
     # logger.debug(params.model_dump_json(exclude={'f_lambda', 'j_lambda'}))
 
     images_dir = utils.get_images_dir(uuid)
@@ -219,7 +224,7 @@ def create_animation_inner(uuid: str, params: types.AnimationParameters):
 
 
 def create_still_inner(uuid: str, params: types.StillParameters):
-    utils.logger_setup(logger, uuid, 'still')
+    utils.logger_setup(logger, utils.get_images_dir(uuid), 'still')
     # logger.debug(params.model_dump_json(exclude={'f_lambda', 'j_lambda'}))
 
     images_dir = utils.get_images_dir(uuid)

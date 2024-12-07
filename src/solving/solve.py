@@ -179,7 +179,7 @@ class Solver(object):
 class SolverTaichi(object):
     def __init__(self, f_lambda: Callable, j_lambda: Callable, x_coords: npt.NDArray, y_coords: npt.NDArray, delta: float, unique_solutions: npt.NDArray):
         # ti.init(debug=True)
-        ti.init(arch=ti.gpu)
+        ti.init(arch=ti.gpu if cfg.ENABLE_GPU else ti.cpu)
         self.f_lambda = f_lambda
         self.j_lambda = j_lambda
         self.delta = delta

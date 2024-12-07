@@ -14,6 +14,10 @@ from pathlib import Path
 import matplotlib
 from PIL import Image
 from typing import Union, List
+from datetime import datetime
+
+import logging
+logger = logging.getLogger(__name__)
 
 import src.imaging.interface as imaging_interface
 
@@ -22,10 +26,14 @@ nb.config.DISABLE_JIT = not cfg.ENABLE_JIT
 
 def save_still(images_dir: Path, solutions_grid: npt.NDArray, iterations_grid: npt.NDArray, unique_solutions: npt.NDArray, colour_set: Union[int, List[str]] = 0, frame: int = 0, smoothing: bool = False, blending: bool = False):
     """Generate an image with the specified colour scheme, or a range of colour schemes if none specified."""
+    utils.logger_setup(logger, images_dir, 'still')
+    n = datetime.now()
     pixel_grid = np.zeros((solutions_grid.shape[0], solutions_grid.shape[1], 3), dtype=np.uint8)
     smoothed_solutions = imaging_interface.smooth_grid_wrapper(solutions_grid) if smoothing else solutions_grid
     blending_arrays = create_blending_arrays(iterations_grid) if blending else []
+    logger.debug(f'block 1 time: {(datetime.now() - n).total_seconds()} s')
 
+    n = datetime.now()
     if not (isinstance(colour_set, list) and len(colour_set) == unique_solutions.shape[0]):
         idx = colour_set if isinstance(colour_set, int) else 0
 
@@ -35,16 +43,24 @@ def save_still(images_dir: Path, solutions_grid: npt.NDArray, iterations_grid: n
             idx += 1
 
     rgb_colours = [matplotlib.colors.to_rgb(colour) for colour in colour_set]
+    logger.debug(f'block 2 time: {(datetime.now() - n).total_seconds()} s')
 
+    n = datetime.now()
     for j in range(solutions_grid.shape[0]):
         for i in range(solutions_grid.shape[1]):
             if iterations_grid[j, i] < cfg.BLACKOUT_ITERS:
                 pixel_grid[j, i, :] = [int(x*255) for x in rgb_colours[smoothed_solutions[j, i]-1]]
     blended_pixel_grid = imaging_interface.blend_grid_wrapper(pixel_grid, blending_arrays, 0) if blending else pixel_grid
+    logger.debug(f'block 3 time: {(datetime.now() - n).total_seconds()} s')
+
+    n = datetime.now()
     np.savetxt(images_dir / utils.get_frame_filename(frame, 'txt'), blended_pixel_grid.reshape([blended_pixel_grid.shape[0],
                blended_pixel_grid.shape[1]*blended_pixel_grid.shape[2]]), fmt='%u')
+    logger.debug(f'TXT save time: {(datetime.now() - n).total_seconds()} s')
     if cfg.SAVE_PNG_FRAMES:
+        n = datetime.now()
         Image.fromarray(blended_pixel_grid, 'RGB').save(images_dir / utils.get_frame_filename(frame, 'png'))
+        logger.debug(f'PNG save time: {(datetime.now() - n).total_seconds()} s')
 
 
 def create_blending_arrays(iterations: npt.NDArray) -> List[npt.NDArray]:

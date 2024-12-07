@@ -33,6 +33,9 @@ def timed(func: Callable) -> Callable:
     return wrapper
 
 
+
+
+
 def print_time_remaining_estimate(i: int, N: int, duration_so_far: float) -> None:
     if i != N - 1:
         mean_time_per_frame = duration_so_far / (i + 1)
@@ -48,19 +51,18 @@ def plot_unique_solutions(unique_solns: npt.NDArray) -> None:
     plt.show(block=True)
 
 
-def logger_setup(logger: logging.Logger, uuid: str, file_name_base: str) -> None:
+def logger_setup(logger: logging.Logger, images_dir: Path, file_name_base: str) -> None:
     logger.setLevel(logging.DEBUG)
-    directory = get_images_dir(uuid)
-    logs_files = list(directory.glob(f'{file_name_base}_*.log'))
+    logs_files = list(images_dir.glob(f'{file_name_base}_*.log'))
     if logs_files:
         file_name = logs_files[0]
     else:
-        mkdir_if_nonexistent(directory)
+        mkdir_if_nonexistent(images_dir)
         datetimestr = datetime.utcnow().astimezone(timezone.utc).isoformat()\
             .replace(':', '-').replace('.', '-')
         file_name = f'{file_name_base}_{datetimestr}.log'
     # create file handler which logs even debug messages
-    fh = logging.FileHandler(str(directory / file_name))
+    fh = logging.FileHandler(str(images_dir / file_name))
     fh.setLevel(logging.DEBUG)
     # create console handler with a higher log level
     ch = logging.StreamHandler()
@@ -85,5 +87,3 @@ def mean_manhattan_distance_between_group_of_points(points: List[npt.NDArray]):
         for j in range(i + 1, n):
             total += manhattan_distance(points[i], points[j])
     return total/(n * (n-1)/2)
-
-
