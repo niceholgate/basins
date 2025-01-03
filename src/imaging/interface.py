@@ -26,7 +26,6 @@ except:
 def smooth_grid_wrapper(solutions: npt.NDArray) -> npt.NDArray:
     if PRECOMPILED and cfg.ENABLE_AOT:
         return imaging_interface.smooth_grid(solutions)
-    print('Used pythonic smooth_grid')
     return smooth_grid(solutions)
 
 
@@ -69,7 +68,6 @@ def smooth_grid(solutions: npt.NDArray) -> npt.NDArray:
 def blend_grid_wrapper(pixel_grid: npt.NDArray, blending_arrays: List[npt.NDArray], decay_fac_idx: int) -> npt.NDArray:
     if PRECOMPILED and cfg.ENABLE_AOT:
         return imaging_interface.blend_grid(pixel_grid, blending_arrays, decay_fac_idx)
-    print('Used pythonic blend_grid')
     return blend_grid(pixel_grid, blending_arrays, decay_fac_idx)
 
 
@@ -99,7 +97,6 @@ def blend_grid(pixel_grid: npt.NDArray, blending_arrays: List[npt.NDArray], deca
 def create_blending_array_wrapper(y_pixels: int, x_pixels: int, j: int, i: int, iterations: float, cbrt_iterations: float) -> npt.NDArray:
     if PRECOMPILED and cfg.ENABLE_AOT:
         return imaging_interface.create_blending_array(y_pixels, x_pixels, j, i, iterations, cbrt_iterations)
-    print('Used pythonic create_blending_array')
     return create_blending_array(y_pixels, x_pixels, j, i, iterations, cbrt_iterations)
 
 

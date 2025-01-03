@@ -47,10 +47,11 @@ create_solver_spec = (
 )
 @nb.njit
 def create_solver(f_lambda: Callable, j_lambda: Callable, x_coords: npt.NDArray, y_coords: npt.NDArray, delta: float, unique_solutions: npt.NDArray):
-    if cfg.ENABLE_TAICHI:
-        return SolverTaichi(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
     return Solver(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
 
+
+def create_solver_taichi(f_lambda: Callable, j_lambda: Callable, x_coords: npt.NDArray, y_coords: npt.NDArray, delta: float, unique_solutions: npt.NDArray):
+    return SolverTaichi(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
 
 solution_context_spec = (
     ('f_lambda', types.List(float64)(float64, float64, float64).as_type()),

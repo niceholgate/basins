@@ -29,7 +29,6 @@ except:
 def find_unique_solutions_wrapper(f_lambda: Callable, j_lambda: Callable, delta: float, search_limits: npt.NDArray) -> Optional[npt.NDArray]:
     if PRECOMPILED and cfg.ENABLE_AOT:
         return solving_interface.find_unique_solutions(f_lambda, j_lambda, delta, search_limits)
-    print('Used pythonic find_unique_solutions')
     return find_unique_solutions(f_lambda, j_lambda, delta, search_limits)
 
 
@@ -88,7 +87,6 @@ def find_unique_solutions(f_lambda: Callable, j_lambda: Callable, delta: float, 
 def get_image_pixel_coords_wrapper(y_pixels: int, x_pixels: int, unique_solutions: npt.NDArray) -> Tuple[npt.NDArray, npt.NDArray]:
     if PRECOMPILED and cfg.ENABLE_AOT:
         return solving_interface.get_image_pixel_coords(y_pixels, x_pixels, unique_solutions)
-    print('Used pythonic get_image_pixel_coords')
     return get_image_pixel_coords(y_pixels, x_pixels, unique_solutions)
 
 
@@ -115,9 +113,10 @@ def get_image_pixel_coords(y_pixels: int, x_pixels: int, unique_solutions: npt.N
 
 
 def solve_grid_wrapper(f_lambda: Callable, j_lambda: Callable, x_coords: npt.NDArray, y_coords: npt.NDArray, delta: float, unique_solutions: npt.NDArray) -> Tuple[npt.NDArray, npt.NDArray]:
+    if cfg.ENABLE_TAICHI:
+        return solve_grid_taichi(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
     if PRECOMPILED and cfg.ENABLE_AOT:
         return solving_interface.solve_grid(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
-    print('Used pythonic solve_grid')
     return solve_grid(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
 
 
@@ -131,20 +130,20 @@ solve_grid_spec = (
 )
 @cc.export('solve_grid', solve_grid_spec)
 def solve_grid(f_lambda: Callable, j_lambda: Callable, x_coords: npt.NDArray, y_coords: npt.NDArray, delta: float, unique_solutions: npt.NDArray) -> Tuple[npt.NDArray, npt.NDArray]:
-    solver = solve.create_solver(ti.func(f_lambda), ti.func(j_lambda), x_coords, y_coords, delta, unique_solutions)
-    print('starting solve')
-    from datetime import datetime
-    n = datetime.now()
+    solver = solve.create_solver(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
     solver.solve_grid()
-    print((datetime.now()-n).total_seconds()*1000)
-    print('finishing solve')
     return solver.solutions_grid, solver.iterations_grid
+
+
+def solve_grid_taichi(f_lambda: Callable, j_lambda: Callable, x_coords: npt.NDArray, y_coords: npt.NDArray, delta: float, unique_solutions: npt.NDArray) -> Tuple[npt.NDArray, npt.NDArray]:
+    solver = solve.create_solver_taichi(ti.func(f_lambda), ti.func(j_lambda), x_coords, y_coords, delta, unique_solutions)
+    solver.solve_grid()
+    return solver.solutions_grid.to_numpy(), solver.iterations_grid.to_numpy()
 
 
 def solve_grid_quadtrees_wrapper(f_lambda: Callable, j_lambda: Callable, x_coords: npt.NDArray, y_coords: npt.NDArray, delta: float, unique_solutions: npt.NDArray) -> Tuple[npt.NDArray, npt.NDArray]:
     if PRECOMPILED and cfg.ENABLE_AOT:
         return solving_interface.solve_grid_quadtrees(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
-    print('Used pythonic solve_grid_quadtrees')
     return solve_grid_quadtrees(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
 
 

@@ -18,7 +18,7 @@ class StillRequest(BaseModel):
     x_pixels: int = 500
     y_pixels: int = 500
     expressions: List[str]
-    search_limits: List[float]
+    search_limits: List[float] = [-1000.0, 1000.0, -1000.0, 1000.0]
 
 
 class AnimationRequest(StillRequest):
@@ -77,10 +77,12 @@ class StillParameters(BaseModel):
 
         f_sym = [sp.parsing.sympy_parser.parse_expr(ex) for ex in expressions]
         j_sym = [[sp.diff(exp, sym) for sym in SYMBOLS[:2]] for exp in f_sym]
-        # f_lambda = nb.njit(sp.lambdify(SYMBOLS, f_sym, 'numpy'), target_backend=cfg.NUMBA_TARGET)
-        # j_lambda = nb.njit(sp.lambdify(SYMBOLS, j_sym, 'numpy'), target_backend=cfg.NUMBA_TARGET)
-        f_lambda = sp.lambdify(SYMBOLS, f_sym, [{'sin': tm.sin, 'cos': tm.cos}, 'numpy'])
-        j_lambda = sp.lambdify(SYMBOLS, j_sym, [{'sin': tm.sin, 'cos': tm.cos}, 'numpy'])
+        if cfg.ENABLE_TAICHI:
+            f_lambda = sp.lambdify(SYMBOLS, f_sym, [{'sin': tm.sin, 'cos': tm.cos}, 'numpy'])
+            j_lambda = sp.lambdify(SYMBOLS, j_sym, [{'sin': tm.sin, 'cos': tm.cos}, 'numpy'])
+        else:
+            f_lambda = nb.njit(sp.lambdify(SYMBOLS, f_sym, 'numpy'))
+            j_lambda = nb.njit(sp.lambdify(SYMBOLS, j_sym, 'numpy'))
         return f_lambda, j_lambda
 
 

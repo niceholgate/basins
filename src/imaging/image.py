@@ -57,7 +57,7 @@ def save_still(images_dir: Path, solutions_grid: npt.NDArray, iterations_grid: n
     np.savetxt(images_dir / utils.get_frame_filename(frame, 'txt'), blended_pixel_grid.reshape([blended_pixel_grid.shape[0],
                blended_pixel_grid.shape[1]*blended_pixel_grid.shape[2]]), fmt='%u')
     logger.debug(f'TXT save time: {(datetime.now() - n).total_seconds()} s')
-    if cfg.SAVE_PNG_FRAMES:
+    if frame==0 and cfg.SAVE_PNG_FRAME:
         n = datetime.now()
         Image.fromarray(blended_pixel_grid, 'RGB').save(images_dir / utils.get_frame_filename(frame, 'png'))
         logger.debug(f'PNG save time: {(datetime.now() - n).total_seconds()} s')

@@ -74,23 +74,19 @@ async def create_animation(request: types.AnimationRequest, response: Response, 
         background_tasks.add_task(
             create_animation_inner,
             this_uuid, params)
-        response.body = {
+        return {
             'message': 'Creating an animation',
             'id': this_uuid}
-        return response
     except ValidationError as err:
         response.status_code = status.HTTP_400_BAD_REQUEST
-        response.body = {'message': 'Input errors: ' + str({error['loc'][0]: error['msg'] for error in err.errors()})}
-        return response
+        return {'message': 'Input errors: ' + str({error['loc'][0]: error['msg'] for error in err.errors()})}
     except ValueError as err:
         response.status_code = status.HTTP_400_BAD_REQUEST
-        response.body = {'message': 'Input errors: ' + str(err)}
-        return response
+        return {'message': 'Input errors: ' + str(err)}
     except Exception as err:
         print(err)
         response.status_code = status.HTTP_400_BAD_REQUEST
-        response.body = {'message': 'Input errors: ' + str(err)}
-        return response
+        return {'message': 'Input errors: ' + str(err)}
 
 
 @app.get('/load/{uuid}/rgb_frame/{frame}')
@@ -98,13 +94,11 @@ def load_rgb_frame(uuid: str, frame: int, response: Response):
     try:
         directory = utils.get_images_dir(uuid)
         rgb_frame_data_path = directory / utils.get_frame_filename(frame, 'txt')
-        response.body = imaging.image.load_rgb_file(rgb_frame_data_path).tolist()
-        return response
+        return imaging.image.load_rgb_file(rgb_frame_data_path).tolist()
     except Exception as err:
         print(err)
         response.status_code = status.HTTP_400_BAD_REQUEST
-        response.body = {'message': 'Input errors: ' + str(err)}
-        return response
+        return {'message': 'Input errors: ' + str(err)}
 
 
 # TODO: ability to look at a selection of frames in the video (while they are being produced),
@@ -150,7 +144,7 @@ def produce_image_timed(f_lambda, j_lambda, delta, images_dir, colour_set, uniqu
         solutions_grid, iterations_grid = solve_interface.solve_grid_wrapper(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
     print('starting save')
     n = datetime.now()
-    imaging.image.save_still(images_dir, solutions_grid.to_numpy(), iterations_grid.to_numpy(), unique_solutions, colour_set=colour_set, frame=i)
+    imaging.image.save_still(images_dir, solutions_grid, iterations_grid, unique_solutions, colour_set=colour_set, frame=i)
     print((datetime.now() - n).total_seconds() * 1000)
     print('finishing save')
 
@@ -241,4 +235,4 @@ def create_still_inner(uuid: str, params: types.StillParameters):
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8002)
+    uvicorn.run(app, host="0.0.0.0", port=8003)
