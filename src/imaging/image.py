@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 import src.imaging.interface as imaging_interface
 
-nb.config.DISABLE_JIT = not cfg.ENABLE_JIT
+# nb.config.DISABLE_JIT = not cfg.ENABLE_JIT
 
 
 def save_still(images_dir: Path, solutions_grid: npt.NDArray, iterations_grid: npt.NDArray, unique_solutions: npt.NDArray, colour_set: Union[int, List[str]] = 0, frame: int = 0, smoothing: bool = False, blending: bool = False):

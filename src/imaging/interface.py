@@ -1,5 +1,4 @@
 import src.config as cfg
-import src.utils as utils
 
 import os
 import sys
@@ -7,24 +6,23 @@ from numba.pycc import CC
 from numba import int32, float64, types
 import numpy as np
 import numpy.typing as npt
-from pathlib import Path
 from typing import List, Dict
 
 
 MODULE_NAME = 'imaging_interface'
+MODULE_PATH = os.path.realpath(__file__)
 cc = CC(MODULE_NAME)
 try:
-    src_dir = Path(os.path.realpath(__file__)).parent
-    build_dir = src_dir.parent/'build'
-    sys.path.append(str(build_dir))
+    sys.path.append(str(cfg.BUILD_DIR))
     import imaging_interface
     PRECOMPILED = True
 except:
     PRECOMPILED = False
 
+
 # TODO: smoothing/blending are currently not working after numba AOT - slow then failure
 def smooth_grid_wrapper(solutions: npt.NDArray) -> npt.NDArray:
-    if PRECOMPILED and cfg.ENABLE_AOT:
+    if PRECOMPILED and cfg.ENABLE_NUMBA:
         return imaging_interface.smooth_grid(solutions)
     return smooth_grid(solutions)
 
@@ -66,7 +64,7 @@ def smooth_grid(solutions: npt.NDArray) -> npt.NDArray:
 
 
 def blend_grid_wrapper(pixel_grid: npt.NDArray, blending_arrays: List[npt.NDArray], decay_fac_idx: int) -> npt.NDArray:
-    if PRECOMPILED and cfg.ENABLE_AOT:
+    if PRECOMPILED and cfg.ENABLE_NUMBA:
         return imaging_interface.blend_grid(pixel_grid, blending_arrays, decay_fac_idx)
     return blend_grid(pixel_grid, blending_arrays, decay_fac_idx)
 
@@ -95,7 +93,7 @@ def blend_grid(pixel_grid: npt.NDArray, blending_arrays: List[npt.NDArray], deca
 
 
 def create_blending_array_wrapper(y_pixels: int, x_pixels: int, j: int, i: int, iterations: float, cbrt_iterations: float) -> npt.NDArray:
-    if PRECOMPILED and cfg.ENABLE_AOT:
+    if PRECOMPILED and cfg.ENABLE_NUMBA:
         return imaging_interface.create_blending_array(y_pixels, x_pixels, j, i, iterations, cbrt_iterations)
     return create_blending_array(y_pixels, x_pixels, j, i, iterations, cbrt_iterations)
 
@@ -128,19 +126,3 @@ def create_blending_array(y_pixels: int, x_pixels: int, j: int, i: int, iteratio
     weights[:, 2:] = weights[:, 2:] / weights[:, 2:].sum(axis=0)
     return weights
 
-
-# TODO: one script that recreates all of the precompiled modules
-compiled_module_file_exists = any([x for x in cfg.BUILD_DIR.glob(f'{MODULE_NAME}*') if x.is_file()])
-if cfg.ENABLE_AOT:
-    if compiled_module_file_exists:
-        print(f'Using existing numba Ahead-Of-Time compiled files for module: {MODULE_NAME}')
-    else:
-        print(f'Performing Ahead-Of-Time numba compilation for module: {MODULE_NAME}')
-        cc.compile()
-        src_dir = Path(os.path.realpath(__file__)).parent
-        compiled_module_file = [x for x in src_dir.glob(f'{MODULE_NAME}*') if x.is_file()][0]
-        utils.mkdir_if_nonexistent(cfg.BUILD_DIR)
-        file_dest = cfg.BUILD_DIR / compiled_module_file.name
-        file_dest.unlink(missing_ok=True)
-        compiled_module_file.rename(file_dest)
-        PRECOMPILED = True

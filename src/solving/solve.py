@@ -9,7 +9,7 @@ from numba.experimental import jitclass
 from numba import int64, float64, types
 from typing import Tuple, Callable, Optional
 
-nb.config.DISABLE_JIT = not cfg.ENABLE_JIT
+# nb.config.DISABLE_JIT = not cfg.ENABLE_JIT
 
 
 @nb.njit
@@ -127,7 +127,7 @@ class Solver(object):
                 if unique_interior_soln:
                     self.solutions_grid[qt.y_lims[0]:qt.y_lims[1] + 1, qt.x_lims[0]:qt.x_lims[1] + 1] = last_boundary_soln
                     iters = self.iterations_grid[qt.y_lims[0]:qt.y_lims[1] + 1, qt.x_lims[0]:qt.x_lims[1] + 1]
-                    # TODO: is this slow?
+                    # TODO: would a working equivalent numpy impl be faster for this mean calc+set?
                     # known_iters = iters[iters != 0]
                     # self.iterations_grid[qt.y0:qt.y1 + 1, qt.x0:qt.x1 + 1] = int(known_iters.mean())
                     sum_iters = 0
@@ -210,8 +210,6 @@ class SolverTaichi(object):
             f = ti.math.vec2(self.f_lambda(curr_x, curr_y, d))
             j = ti.math.mat2(self.j_lambda(curr_x, curr_y, d))
 
-            # print('hello1', f[1], j[0, 0])
-
             # det = ti.math.determinant(j)
             j_inv = ti.math.inverse(j)
             delta = j_inv @ -f
@@ -219,11 +217,9 @@ class SolverTaichi(object):
             curr_x = curr_x + delta[0]
             curr_y = curr_y + delta[1]
 
-            # print(delta[0], delta[1])
             delta_norm = ti.math.length(delta)
             # delta_norm_hist.append(delta_norm)
             n_iters += 1
-            # print(f'stopping params: {delta_norm}>{cfg.EPSILON}, {n_iters}/{cfg.MAX_ITERS}')
 
         # print(f'Arrived at solution {self.current_guess[0]}, {self.current_guess[1]} in {n_iters} iters')
         return curr_x, curr_y, n_iters
@@ -274,7 +270,6 @@ class SolverTaichi(object):
     @staticmethod
     @ti.func
     def points_approx_equal(x1, y1, x2, y2, unique_soln_idx: int, epsilon: float = cfg.EPSILON) -> bool:
-        # todo: test speed without a sqrt here. kinda unnecessary.
-        result = ti.math.sqrt((x1-x2)**2+(y1-y2)**2) < 2 * epsilon
+        result = (x1-x2)**2+(y1-y2)**2 < 2 * epsilon
         # print(f'comparing {x2}, {y2} to {x1}, {y1} (solution index {unique_soln_idx}): {result}')
         return result

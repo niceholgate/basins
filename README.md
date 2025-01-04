@@ -20,7 +20,7 @@ and does not currently support the quadtrees acceleration.
       - `uvicorn src.api.controller:app --host=0.0.0.0 --port=8000 --reload`
    2. With Docker ([Docker](https://docs.docker.com/desktop/) must be installed):
       - `docker build -t basins .`
-      - `docker run -p 8000:8000 --mount source=basins-images,target=/basins/images basins`
+      - `docker run -p 8000:8000 --mount type=bind,source="$(pwd)"/images,target=/basins/images --mount type=bind,source="$(pwd)"/build,target=/basins/build basins`
 3. To create an...
    1. Image, HTTP POST to `http://localhost:8000/create/still` with example payload:
       ```
@@ -53,11 +53,22 @@ and does not currently support the quadtrees acceleration.
 4. Note the unique `id` returned in the response from the POST request and use it to find the relevant output files saved
 in the `./basins/images` directory.
 5. See `./src/config.py` for parameters that control various aspects of the system, including how the calculations are accelerated (e.g. `numba` vs. `taichi`).
-   - If running with uvicorn, the app will need to be restarted when these are changed.
+   - If running with uvicorn, the `--reload` option means that the app can pick up any changes to these while it's running.
    - If running with Docker, you will have to rebuild when these are changed.
 6. There is also a work-in-progress, browser-based GUI that you can use to generate and view images:
    1. From the `./basins/frontend` directory, run `npm start` ([npm](https://github.com/nvm-sh/nvm) must be installed). 
    2. Browse to `http://localhost:3000/`
       
 # Wishlist/TODOs
-1. Add the option to solve via [Broyden's method](https://en.wikipedia.org/wiki/Broyden%27s_method).
+1. Improve logging and error handling/message.
+2. Queue and rate-limit requests
+3. Productionise with Lambda, APIGateway, LocalStack for testing.
+4. Alternatively, improve GPU taichi implementation then port to a static web app using [taichi-js](https://taichi-js.com/playground/game-of-life). 
+5. GUI: Add ability to look at a selection of frames in the animation (while they are being produced), then when it's finished to click a button to generate and download a file.
+6. GUI: Improve layout + add tabs (sidebar) + refactoring.
+7. GUI: Add loading bars using [server-sent](###https://medium.com/codex/implementation-of-server-sent-events-and-eventsource-live-progress-indicator-using-react-and-723596f35225
+) [events](https://medium.com/codex/implementation-of-server-sent-events-and-eventsource-live-progress-indicator-using-react-and-723596f35225). 
+8. Add the option to solve via [Broyden's method](https://en.wikipedia.org/wiki/Broyden%27s_method).
+9. Temporal interpolation (create frames spread evenly throughout an animation, look for pixels that never change).
+10. Animations can pan/zoom the FoV.
+11. Support for complex equations.

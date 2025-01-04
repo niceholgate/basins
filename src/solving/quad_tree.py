@@ -5,7 +5,7 @@ import src.config as cfg
 from numba.experimental import jitclass
 from numba import optional, types, boolean
 
-nb.config.DISABLE_JIT = not cfg.ENABLE_JIT
+# nb.config.DISABLE_JIT = not cfg.ENABLE_JIT
 
 
 node_type = nb.deferred_type()
@@ -97,7 +97,7 @@ class QuadTree:
         return same_coords and same_parents
 
 
-if cfg.ENABLE_JIT:
+if cfg.ENABLE_NUMBA:
     node_type.define(optional(QuadTree.class_type.instance_type))
 
 # def log_to_file_from_jit():

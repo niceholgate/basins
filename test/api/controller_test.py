@@ -46,7 +46,6 @@ async def test_create_animation_happy_path(mocker):
 
 
 # TODO: add more validation to the animation request parameters
-# TODO: temporal interpolation (create frames spread evenly through the whole animation then interpolate certain pixels for the remaining frames
 @pytest.mark.anyio
 async def test_create_animation_error_on_single_frame(mocker):
     request = types.AnimationRequest(expressions=shared.TEST_EXPRESSIONS,

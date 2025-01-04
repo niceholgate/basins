@@ -1,11 +1,11 @@
-# Whether to use numba acceleration. Suggest using both or neither - ahead-of-time avoids the need for any compilation
-# upon application restart, so JIT is pending removal.
-ENABLE_JIT = True
-ENABLE_AOT = False
+# Whether to use numba acceleration (compiles solver to C library ahead-of-time).
+ENABLE_NUMBA = True
 
-# Whether to use taichi acceleration. This is a WIP. It works, but not with quadtrees, and GPU isn't faster.
+# Whether to use taichi acceleration.
+# This is a WIP. It works, but it doesn't yet leverage quadtrees, and GPU isn't faster.
+# If True, overrides numba and quadtrees acceleration.
 ENABLE_TAICHI = False
-ENABLE_GPU = False
+ENABLE_GPU = True
 
 # Whether to accelerate the frame generation using quadtree partitioning of the region.
 # If enough randomly sampled pixels in a quadtree subregion are all the same colour, the remaining pixels are filled in
@@ -35,4 +35,4 @@ FRAME_COUNT_PADDING = '{:06d}'
 
 import os
 from pathlib import Path
-BUILD_DIR = Path(os.path.realpath(__file__)).parent/'build'
+BUILD_DIR = Path(os.path.realpath(__file__)).parent.parent/'build'

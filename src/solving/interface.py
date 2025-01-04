@@ -1,12 +1,8 @@
-import timeit
-
 import src.config as cfg
-import src.utils as utils
 from src.solving import solve
 
 import os
 import sys
-from pathlib import Path
 import numpy as np
 import numpy.typing as npt
 from numba.pycc import CC
@@ -15,11 +11,10 @@ from typing import Tuple, Callable, List, Optional
 import taichi as ti
 
 MODULE_NAME = 'solving_interface'
+MODULE_PATH = os.path.realpath(__file__)
 cc = CC(MODULE_NAME)
 try:
-    src_dir = Path(os.path.realpath(__file__)).parent
-    build_dir = src_dir.parent/'build'
-    sys.path.append(str(build_dir))
+    sys.path.append(str(cfg.BUILD_DIR))
     import solving_interface
     PRECOMPILED = True
 except:
@@ -27,7 +22,7 @@ except:
 
 
 def find_unique_solutions_wrapper(f_lambda: Callable, j_lambda: Callable, delta: float, search_limits: npt.NDArray) -> Optional[npt.NDArray]:
-    if PRECOMPILED and cfg.ENABLE_AOT:
+    if PRECOMPILED and cfg.ENABLE_NUMBA:
         return solving_interface.find_unique_solutions(f_lambda, j_lambda, delta, search_limits)
     return find_unique_solutions(f_lambda, j_lambda, delta, search_limits)
 
@@ -85,7 +80,7 @@ def find_unique_solutions(f_lambda: Callable, j_lambda: Callable, delta: float, 
 
 
 def get_image_pixel_coords_wrapper(y_pixels: int, x_pixels: int, unique_solutions: npt.NDArray) -> Tuple[npt.NDArray, npt.NDArray]:
-    if PRECOMPILED and cfg.ENABLE_AOT:
+    if PRECOMPILED and cfg.ENABLE_NUMBA:
         return solving_interface.get_image_pixel_coords(y_pixels, x_pixels, unique_solutions)
     return get_image_pixel_coords(y_pixels, x_pixels, unique_solutions)
 
@@ -115,7 +110,7 @@ def get_image_pixel_coords(y_pixels: int, x_pixels: int, unique_solutions: npt.N
 def solve_grid_wrapper(f_lambda: Callable, j_lambda: Callable, x_coords: npt.NDArray, y_coords: npt.NDArray, delta: float, unique_solutions: npt.NDArray) -> Tuple[npt.NDArray, npt.NDArray]:
     if cfg.ENABLE_TAICHI:
         return solve_grid_taichi(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
-    if PRECOMPILED and cfg.ENABLE_AOT:
+    if PRECOMPILED and cfg.ENABLE_NUMBA:
         return solving_interface.solve_grid(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
     return solve_grid(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
 
@@ -142,7 +137,7 @@ def solve_grid_taichi(f_lambda: Callable, j_lambda: Callable, x_coords: npt.NDAr
 
 
 def solve_grid_quadtrees_wrapper(f_lambda: Callable, j_lambda: Callable, x_coords: npt.NDArray, y_coords: npt.NDArray, delta: float, unique_solutions: npt.NDArray) -> Tuple[npt.NDArray, npt.NDArray]:
-    if PRECOMPILED and cfg.ENABLE_AOT:
+    if PRECOMPILED and cfg.ENABLE_NUMBA:
         return solving_interface.solve_grid_quadtrees(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
     return solve_grid_quadtrees(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
 
@@ -152,21 +147,3 @@ def solve_grid_quadtrees(f_lambda: Callable, j_lambda: Callable, x_coords: npt.N
     solver = solve.create_solver(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
     solver.solve_grid_quadtrees()
     return solver.solutions_grid, solver.iterations_grid
-
-
-# TODO: one script that recreates all of the precompiled modules
-compiled_module_file_exists = any([x for x in cfg.BUILD_DIR.glob(f'{MODULE_NAME}*') if x.is_file()])
-if cfg.ENABLE_AOT:
-    if compiled_module_file_exists:
-        print(f'Using existing numba Ahead-Of-Time compiled files for module: {MODULE_NAME}')
-    else:
-        print(f'Performing Ahead-Of-Time numba compilation for module: {MODULE_NAME}')
-        cc.compile()
-        src_dir = Path(os.path.realpath(__file__)).parent
-        compiled_module_file = [x for x in src_dir.glob(f'{MODULE_NAME}*') if x.is_file()][0]
-        utils.mkdir_if_nonexistent(cfg.BUILD_DIR)
-        file_dest = cfg.BUILD_DIR / compiled_module_file.name
-        file_dest.unlink(missing_ok=True)
-        compiled_module_file.rename(file_dest)
-        PRECOMPILED = True
-

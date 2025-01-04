@@ -3,6 +3,7 @@ import src.imaging as imaging
 import src.utils as utils
 import src.solving.interface as solve_interface
 import src.config as cfg
+import src.aot as aot
 
 import uuid
 
@@ -16,6 +17,7 @@ import numpy as np
 import logging
 logger = logging.getLogger(__name__)
 
+aot.do_precompilation()
 
 app = FastAPI()
 
@@ -101,8 +103,6 @@ def load_rgb_frame(uuid: str, frame: int, response: Response):
         return {'message': 'Input errors: ' + str(err)}
 
 
-# TODO: ability to look at a selection of frames in the video (while they are being produced),
-# then when it's finished to click a button to generate and download a file.
 @app.get('/load/{uuid}/run_data')
 def load_run_data(uuid: str, response: Response):
     try:
@@ -142,27 +142,8 @@ def produce_image_timed(f_lambda, j_lambda, delta, images_dir, colour_set, uniqu
         solutions_grid, iterations_grid = solve_interface.solve_grid_quadtrees_wrapper(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
     else:
         solutions_grid, iterations_grid = solve_interface.solve_grid_wrapper(f_lambda, j_lambda, x_coords, y_coords, delta, unique_solutions)
-    print('starting save')
     n = datetime.now()
     imaging.image.save_still(images_dir, solutions_grid, iterations_grid, unique_solutions, colour_set=colour_set, frame=i)
-    print((datetime.now() - n).total_seconds() * 1000)
-    print('finishing save')
-
-
-# TODO:
-# -improve UI layout + add tabs (sidebar) + refactoring
-# -loading bars with server-sent events
-###https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events?fbclid=IwZXh0bgNhZW0CMTAAAR0Jc8W85IGtv2YlQdb2PT3QU8-d7vmNGV8_vW6rgQxOKPOdzwto9SDveRI_aem_wJvZf1ZyYehwhxYwiRISCg
-###https://medium.com/codex/implementation-of-server-sent-events-and-eventsource-live-progress-indicator-using-react-and-723596f35225
-# -download video once all frames computed
-# -live view of frame as it is generated?
-# -add more logging
-# -Consolidate input validations in one place
-# -Animations can pan/zoom the grid
-# -Complex equations
-# -queue and RL requests
-# -setup lambda, APIGateway, static app hosting, LocalStack
-# -numba 'interface' concept might be cleaner as a module e.g. solving.interface uses classes in quad_tree and solve
 
 
 def create_animation_inner(uuid: str, params: types.AnimationParameters):
@@ -213,7 +194,7 @@ def create_animation_inner(uuid: str, params: types.AnimationParameters):
         utils.print_time_remaining_estimate(frame_idx, len(params.deltas), total_duration)
 
     imaging.image.rgb_to_mp4(images_dir, params.fps)
-    logger.debug(f'ENABLE_AOT={cfg.ENABLE_AOT}, ENABLE_QUADTREES={cfg.ENABLE_QUADTREES}')
+    logger.debug(f'ENABLE_NUMBA={cfg.ENABLE_NUMBA}, ENABLE_TAICHI={cfg.ENABLE_TAICHI}, ENABLE_GPU={cfg.ENABLE_GPU}, ENABLE_QUADTREES={cfg.ENABLE_QUADTREES}')
     logger.debug(f'Generation time: {total_duration} s')
 
 
@@ -230,7 +211,8 @@ def create_still_inner(uuid: str, params: types.StillParameters):
     x_coords, y_coords = solve_interface.get_image_pixel_coords_wrapper(params.y_pixels, params.x_pixels, unique_solutions)
     generation_time = produce_image_timed(params.f_lambda, params.j_lambda, 0.0, images_dir, params.colour_set, unique_solutions, x_coords, y_coords, 0)
 
-    logger.debug(f'ENABLE_AOT={cfg.ENABLE_AOT}, ENABLE_QUADTREES={cfg.ENABLE_QUADTREES}')
+    # TODO: create a parameter map in logging utils
+    logger.debug(f'ENABLE_NUMBA={cfg.ENABLE_NUMBA}, ENABLE_TAICHI={cfg.ENABLE_TAICHI}, ENABLE_GPU={cfg.ENABLE_GPU}, ENABLE_QUADTREES={cfg.ENABLE_QUADTREES}')
     logger.debug(f'Generation time: {generation_time} s')
 
 
