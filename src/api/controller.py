@@ -217,4 +217,5 @@ def create_still_inner(uuid: str, params: types.StillParameters):
 
 
 if __name__ == "__main__":
+    # app.openapi()
     uvicorn.run(app, host="0.0.0.0", port=8003)
